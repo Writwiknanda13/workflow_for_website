@@ -1,0 +1,1010 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LangGraph Workflow Designer</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --panel-soft: #1f2937;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --line: #374151;
+        --accent: #60a5fa;
+        --good: #34d399;
+        --warning: #fbbf24;
+        --danger: #f87171;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      h2 {
+        font-size: 17px;
+      }
+
+      h3 {
+        font-size: 14px;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0b1220;
+        color: var(--text);
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+        padding: 9px 12px;
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #0b1220;
+        font-weight: 700;
+      }
+
+      button.danger {
+        border-color: var(--danger);
+        color: var(--danger);
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      input,
+      select,
+      textarea {
+        min-width: 0;
+        padding: 9px 10px;
+      }
+
+      textarea {
+        min-height: 74px;
+        resize: vertical;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 280px minmax(480px, 1fr) 390px;
+        min-height: calc(100vh - 73px);
+      }
+
+      .layout > * {
+        min-width: 0;
+      }
+
+      .sidebar,
+      .inspector {
+        padding: 18px;
+        border-right: 1px solid var(--line);
+        background: var(--panel);
+        overflow: auto;
+      }
+
+      .inspector {
+        border-left: 1px solid var(--line);
+        border-right: 0;
+      }
+
+      .canvas {
+        padding: 18px;
+        overflow: auto;
+        min-width: 0;
+      }
+
+      .stack {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .row.wrap {
+        flex-wrap: wrap;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel-soft);
+        padding: 14px;
+      }
+
+      .intent-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .intent-button {
+        width: 100%;
+        text-align: left;
+      }
+
+      .intent-button.active {
+        border-color: var(--accent);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .small {
+        font-size: 12px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 3px 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .pill.html {
+        border-color: var(--good);
+        color: var(--good);
+      }
+
+      .pill.service {
+        border-color: var(--warning);
+        color: var(--warning);
+      }
+
+      .pill.start {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .graph-wrap {
+        width: 100%;
+        max-width: 100%;
+        min-width: 760px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #0b1220;
+      }
+
+      .graph-wrap svg {
+        display: block;
+      }
+
+      .node {
+        cursor: pointer;
+      }
+
+      .node rect {
+        fill: var(--panel-soft);
+        stroke: var(--line);
+      }
+
+      .node.selected rect {
+        stroke: var(--accent);
+        stroke-width: 2;
+      }
+
+      .node.html rect {
+        stroke: var(--good);
+      }
+
+      .fork-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .fork {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px;
+        background: #0b1220;
+      }
+
+      .fork-action {
+        border-top: 1px solid var(--line);
+        margin-top: 6px;
+        padding-top: 10px;
+      }
+
+      .status {
+        min-height: 20px;
+        color: var(--muted);
+      }
+
+      .status.ok {
+        color: var(--good);
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>LangGraph Workflow Designer</h1>
+        <div class="muted small">Design intents, stages, decision alternatives, forks, and actions. Saves back to config/workflow.yaml.</div>
+      </div>
+      <div class="row">
+        <button id="validateBtn">Validate</button>
+        <button id="saveBtn" class="primary">Save YAML</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="stack">
+          <div class="row" style="justify-content: space-between">
+            <h2>Intents</h2>
+            <button id="addIntentBtn">Add</button>
+          </div>
+          <div id="intentList" class="intent-list"></div>
+          <div class="card stack">
+            <h3>Workflow</h3>
+            <label>
+              Name
+              <input id="workflowName" />
+            </label>
+            <label>
+              Default Intent
+              <select id="defaultIntent"></select>
+            </label>
+          </div>
+        </div>
+      </aside>
+
+      <section class="canvas">
+        <div class="stack">
+          <div class="row wrap" style="justify-content: space-between">
+            <div>
+              <h2 id="flowTitle">Flow</h2>
+              <div id="flowDescription" class="muted small"></div>
+            </div>
+            <div class="row wrap">
+              <span id="stageCount" class="pill"></span>
+              <span id="htmlCount" class="pill html"></span>
+              <span id="serviceCount" class="pill service"></span>
+            </div>
+          </div>
+          <div id="graph" class="graph-wrap"></div>
+          <div class="card stack">
+            <h3>Selected Intent Keywords</h3>
+            <textarea id="intentKeywords" placeholder="Comma separated keywords"></textarea>
+          </div>
+          <div id="status" class="status"></div>
+        </div>
+      </section>
+
+      <aside class="inspector">
+        <div class="stack">
+          <h2>Inspector</h2>
+
+          <div class="card stack">
+            <h3>Intent Details</h3>
+            <label>
+              Intent ID
+              <input id="intentId" />
+            </label>
+            <label>
+              Label
+              <input id="intentLabel" />
+            </label>
+            <label>
+              Description
+              <textarea id="intentDescription"></textarea>
+            </label>
+            <label>
+              Start Stage
+              <select id="startStage"></select>
+            </label>
+            <button id="applyIntentBtn">Apply Intent Changes</button>
+          </div>
+
+          <div class="card stack">
+            <div class="row" style="justify-content: space-between">
+              <h3>Stages</h3>
+              <button id="addStageBtn">Add Stage</button>
+            </div>
+            <label>
+              Selected Stage
+              <select id="stageSelect"></select>
+            </label>
+            <label>
+              Stage ID
+              <input id="stageId" />
+            </label>
+            <label>
+              Title
+              <input id="stageTitle" />
+            </label>
+            <label>
+              Action Type
+              <select id="actionType">
+                <option value="checklist">checklist</option>
+                <option value="html_app">html_app</option>
+                <option value="microservice">microservice</option>
+              </select>
+            </label>
+            <label>
+              Action Instruction
+              <textarea id="actionInstruction"></textarea>
+            </label>
+            <label>
+              HTML App URL
+              <input id="appUrl" placeholder="apps/example.html" />
+            </label>
+            <label>
+              Microservice URL
+              <input id="serviceUrl" placeholder="https://service.example.com/run" />
+            </label>
+            <label>
+              Microservice Method
+              <select id="serviceMethod">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+                <option value="DELETE">DELETE</option>
+              </select>
+            </label>
+            <label>
+              Microservice Payload Template JSON
+              <textarea id="payloadTemplate" placeholder='{"intent": "{{intent}}", "stage": "{{stage}}"}'></textarea>
+            </label>
+            <div class="split">
+              <button id="applyStageBtn">Apply Stage</button>
+              <button id="deleteStageBtn" class="danger">Delete Stage</button>
+            </div>
+          </div>
+
+          <div class="card stack">
+            <div class="row" style="justify-content: space-between">
+              <h3>Decision Alternatives / Forks</h3>
+              <button id="addForkBtn">Add Fork</button>
+            </div>
+            <div id="forkList" class="fork-list"></div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      let workflowConfig = null;
+      let selectedIntentId = null;
+      let selectedStageId = null;
+
+      const $ = (id) => document.getElementById(id);
+
+      function slugify(value, fallback) {
+        const slug = value
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "");
+        return slug || fallback;
+      }
+
+      function currentIntent() {
+        return workflowConfig.intents[selectedIntentId];
+      }
+
+      function currentStage() {
+        const intent = currentIntent();
+        return intent?.stages?.[selectedStageId];
+      }
+
+      function setStatus(message, tone = "") {
+        const status = $("status");
+        status.textContent = message;
+        status.className = `status ${tone}`;
+      }
+
+      function parseJsonObject(value, fallback = {}) {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return fallback;
+        }
+        const parsed = JSON.parse(trimmed);
+        if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
+          throw new Error("Value must be a JSON object.");
+        }
+        return parsed;
+      }
+
+      function countActionHooks(intent, actionType) {
+        const stageActionCount = Object.values(intent.stages).filter((stage) => stage.action.type === actionType).length;
+        const forkActionCount = Object.values(intent.stages).reduce((count, stage) => {
+          return (
+            count +
+            Object.values(stage.forks || {}).filter((fork) => fork.action?.type === actionType).length
+          );
+        }, 0);
+        return stageActionCount + forkActionCount;
+      }
+
+      async function loadWorkflow() {
+        const response = await fetch("/workflow");
+        workflowConfig = await response.json();
+        selectedIntentId = Object.keys(workflowConfig.intents)[0];
+        selectedStageId = workflowConfig.intents[selectedIntentId].start_stage;
+        render();
+      }
+
+      async function saveWorkflow() {
+        applyWorkflowFields();
+        const response = await fetch("/workflow", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config: workflowConfig }),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          setStatus(error.detail || "Could not save workflow.", "error");
+          return;
+        }
+        workflowConfig = await response.json();
+        setStatus("Saved config/workflow.yaml. LangGraph will use the updated mapping on the next invoke.", "ok");
+        render();
+      }
+
+      async function validateWorkflow() {
+        applyWorkflowFields();
+        const response = await fetch("/workflow/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config: workflowConfig }),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          setStatus(error.detail || "Workflow is invalid.", "error");
+          return;
+        }
+        setStatus("Workflow is valid.", "ok");
+      }
+
+      function render() {
+        renderWorkflowFields();
+        renderIntents();
+        renderIntentInspector();
+        renderStageInspector();
+        renderGraph();
+      }
+
+      function renderWorkflowFields() {
+        $("workflowName").value = workflowConfig.workflow.name || "";
+        const defaultIntent = $("defaultIntent");
+        defaultIntent.innerHTML = "";
+        Object.entries(workflowConfig.intents).forEach(([intentId, intent]) => {
+          const option = document.createElement("option");
+          option.value = intentId;
+          option.textContent = intent.label || intentId;
+          defaultIntent.appendChild(option);
+        });
+        defaultIntent.value = workflowConfig.workflow.default_intent || selectedIntentId;
+      }
+
+      function applyWorkflowFields() {
+        workflowConfig.workflow.name = $("workflowName").value.trim() || "LangGraph Intent Workflow";
+        workflowConfig.workflow.default_intent = $("defaultIntent").value || selectedIntentId;
+      }
+
+      function renderIntents() {
+        const list = $("intentList");
+        list.innerHTML = "";
+        Object.entries(workflowConfig.intents).forEach(([intentId, intent]) => {
+          const button = document.createElement("button");
+          button.className = `intent-button ${intentId === selectedIntentId ? "active" : ""}`;
+          button.innerHTML = `<strong>${intent.label || intentId}</strong><div class="muted small">${Object.keys(intent.stages || {}).length} stages</div>`;
+          button.addEventListener("click", () => {
+            selectedIntentId = intentId;
+            selectedStageId = intent.start_stage || Object.keys(intent.stages)[0];
+            render();
+          });
+          list.appendChild(button);
+        });
+      }
+
+      function renderIntentInspector() {
+        const intent = currentIntent();
+        $("flowTitle").textContent = intent.label || selectedIntentId;
+        $("flowDescription").textContent = intent.description || "";
+        $("stageCount").textContent = `${Object.keys(intent.stages).length} stages`;
+        $("htmlCount").textContent = `${countActionHooks(intent, "html_app")} HTML hooks`;
+        $("serviceCount").textContent = `${countActionHooks(intent, "microservice")} service hooks`;
+        $("intentId").value = selectedIntentId;
+        $("intentLabel").value = intent.label || "";
+        $("intentDescription").value = intent.description || "";
+        $("intentKeywords").value = (intent.keywords || []).join(", ");
+
+        const startStage = $("startStage");
+        startStage.innerHTML = "";
+        Object.keys(intent.stages).forEach((stageId) => {
+          const option = document.createElement("option");
+          option.value = stageId;
+          option.textContent = stageId;
+          startStage.appendChild(option);
+        });
+        startStage.value = intent.start_stage;
+      }
+
+      function applyIntentChanges() {
+        const oldIntentId = selectedIntentId;
+        const newIntentId = slugify($("intentId").value, oldIntentId);
+        const intent = currentIntent();
+        intent.label = $("intentLabel").value.trim() || newIntentId;
+        intent.description = $("intentDescription").value.trim();
+        intent.start_stage = $("startStage").value;
+        intent.keywords = $("intentKeywords").value
+          .split(",")
+          .map((keyword) => keyword.trim())
+          .filter(Boolean);
+
+        if (newIntentId !== oldIntentId) {
+          workflowConfig.intents[newIntentId] = intent;
+          delete workflowConfig.intents[oldIntentId];
+          if (workflowConfig.workflow.default_intent === oldIntentId) {
+            workflowConfig.workflow.default_intent = newIntentId;
+          }
+          selectedIntentId = newIntentId;
+        }
+        setStatus("Intent changes applied locally. Click Save YAML to persist.", "ok");
+        render();
+      }
+
+      function renderStageInspector() {
+        const intent = currentIntent();
+        if (!intent.stages[selectedStageId]) {
+          selectedStageId = intent.start_stage || Object.keys(intent.stages)[0];
+        }
+        const stageSelect = $("stageSelect");
+        stageSelect.innerHTML = "";
+        Object.entries(intent.stages).forEach(([stageId, stage]) => {
+          const option = document.createElement("option");
+          option.value = stageId;
+          option.textContent = stage.title || stageId;
+          stageSelect.appendChild(option);
+        });
+        stageSelect.value = selectedStageId;
+
+        const stage = currentStage();
+        $("stageId").value = selectedStageId;
+        $("stageTitle").value = stage.title || "";
+        $("actionType").value = stage.action.type || "checklist";
+        $("actionInstruction").value = stage.action.instruction || "";
+        $("appUrl").value = stage.action.app_url || "";
+        $("serviceUrl").value = stage.action.url || "";
+        $("serviceMethod").value = stage.action.method || "POST";
+        $("payloadTemplate").value = JSON.stringify(stage.action.payload_template || {}, null, 2);
+        renderForks();
+      }
+
+      function applyStageChanges() {
+        const intent = currentIntent();
+        const oldStageId = selectedStageId;
+        const newStageId = slugify($("stageId").value, oldStageId);
+        const stage = currentStage();
+        stage.title = $("stageTitle").value.trim() || newStageId;
+        stage.action = {
+          type: $("actionType").value,
+          instruction: $("actionInstruction").value.trim(),
+        };
+        if (stage.action.type === "html_app") {
+          stage.action.app_url = $("appUrl").value.trim() || `apps/${newStageId}.html`;
+        }
+        if (stage.action.type === "microservice") {
+          try {
+            stage.action.url = $("serviceUrl").value.trim();
+            stage.action.method = $("serviceMethod").value;
+            stage.action.payload_template = parseJsonObject($("payloadTemplate").value);
+          } catch (error) {
+            setStatus(`Stage microservice payload is invalid: ${error.message}`, "error");
+            return;
+          }
+        }
+
+        if (newStageId !== oldStageId) {
+          intent.stages[newStageId] = stage;
+          delete intent.stages[oldStageId];
+          if (intent.start_stage === oldStageId) {
+            intent.start_stage = newStageId;
+          }
+          Object.values(intent.stages).forEach((candidate) => {
+            Object.values(candidate.forks || {}).forEach((fork) => {
+              if (fork.next === oldStageId) {
+                fork.next = newStageId;
+              }
+            });
+          });
+          selectedStageId = newStageId;
+        }
+        setStatus("Stage changes applied locally. Click Save YAML to persist.", "ok");
+        render();
+      }
+
+      function addIntent() {
+        const baseId = `new_intent_${Object.keys(workflowConfig.intents).length + 1}`;
+        workflowConfig.intents[baseId] = {
+          label: "New Intent",
+          description: "Describe the new intent.",
+          keywords: ["new intent"],
+          start_stage: "start",
+          stages: {
+            start: {
+              title: "Start",
+              action: {
+                type: "checklist",
+                instruction: "Define the first action for this intent.",
+              },
+              forks: {
+                complete: {
+                  default: true,
+                  next: "finalize",
+                },
+              },
+            },
+          },
+        };
+        selectedIntentId = baseId;
+        selectedStageId = "start";
+        render();
+      }
+
+      function addStage() {
+        const intent = currentIntent();
+        const stageId = `stage_${Object.keys(intent.stages).length + 1}`;
+        intent.stages[stageId] = {
+          title: "New Stage",
+          action: {
+            type: "checklist",
+            instruction: "Describe this action.",
+          },
+          forks: {
+            complete: {
+              default: true,
+              next: "finalize",
+            },
+          },
+        };
+        selectedStageId = stageId;
+        render();
+      }
+
+      function deleteStage() {
+        const intent = currentIntent();
+        const stageIds = Object.keys(intent.stages);
+        if (stageIds.length === 1) {
+          setStatus("An intent must keep at least one stage.", "error");
+          return;
+        }
+        const deletedStageId = selectedStageId;
+        delete intent.stages[deletedStageId];
+        const fallbackStageId = Object.keys(intent.stages)[0];
+        if (intent.start_stage === deletedStageId) {
+          intent.start_stage = fallbackStageId;
+        }
+        Object.values(intent.stages).forEach((stage) => {
+          Object.values(stage.forks || {}).forEach((fork) => {
+            if (fork.next === deletedStageId) {
+              fork.next = "finalize";
+            }
+          });
+        });
+        selectedStageId = fallbackStageId;
+        render();
+      }
+
+      function renderForks() {
+        const stage = currentStage();
+        const intent = currentIntent();
+        const list = $("forkList");
+        list.innerHTML = "";
+        Object.entries(stage.forks || {}).forEach(([forkId, fork]) => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "fork";
+          wrapper.innerHTML = `
+            <div class="stack">
+              <label>
+                Fork ID
+                <input data-field="fork-id" value="${forkId}" />
+              </label>
+              <label>
+                Route To
+                <select data-field="next">
+                  ${Object.keys(intent.stages)
+                    .map((stageId) => `<option value="${stageId}">${stageId}</option>`)
+                    .join("")}
+                  <option value="finalize">finalize</option>
+                </select>
+              </label>
+              <label>
+                Match Any Terms
+                <textarea data-field="when-any" placeholder="Comma separated terms">${(fork.when_any || []).join(", ")}</textarea>
+              </label>
+              <label class="row">
+                <input data-field="default" type="checkbox" ${fork.default ? "checked" : ""} />
+                Default fallback
+              </label>
+              <div class="fork-action stack">
+                <h3>Branch Action Hook</h3>
+                <label>
+                  Action Type
+                  <select data-field="fork-action-type">
+                    <option value="none">none</option>
+                    <option value="checklist">checklist</option>
+                    <option value="html_app">html_app</option>
+                    <option value="microservice">microservice</option>
+                  </select>
+                </label>
+                <label>
+                  Instruction
+                  <textarea data-field="fork-action-instruction" placeholder="Describe what should happen when this branch is selected.">${escapeHtml(fork.action?.instruction || "")}</textarea>
+                </label>
+                <label>
+                  HTML App URL
+                  <input data-field="fork-app-url" placeholder="apps/example.html" value="${escapeHtml(fork.action?.app_url || "")}" />
+                </label>
+                <label>
+                  Microservice URL
+                  <input data-field="fork-service-url" placeholder="https://service.example.com/run" value="${escapeHtml(fork.action?.url || "")}" />
+                </label>
+                <label>
+                  Microservice Method
+                  <select data-field="fork-service-method">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </label>
+                <label>
+                  Headers JSON
+                  <textarea data-field="fork-service-headers" placeholder='{"Authorization": "Bearer ..."}'>${escapeHtml(JSON.stringify(fork.action?.headers || {}, null, 2))}</textarea>
+                </label>
+                <label>
+                  Payload Template JSON
+                  <textarea data-field="fork-service-payload" placeholder='{"intent": "{{intent}}", "stage": "{{stage}}"}'>${escapeHtml(JSON.stringify(fork.action?.payload_template || {}, null, 2))}</textarea>
+                </label>
+              </div>
+              <div class="split">
+                <button data-action="apply">Apply Fork</button>
+                <button data-action="delete" class="danger">Delete Fork</button>
+              </div>
+            </div>
+          `;
+          wrapper.querySelector('[data-field="next"]').value = fork.next;
+          wrapper.querySelector('[data-field="fork-action-type"]').value = fork.action?.type || "none";
+          wrapper.querySelector('[data-field="fork-service-method"]').value = fork.action?.method || "POST";
+          wrapper.querySelector('[data-action="apply"]').addEventListener("click", () => {
+            const newForkId = slugify(wrapper.querySelector('[data-field="fork-id"]').value, forkId);
+            const updatedFork = {
+              next: wrapper.querySelector('[data-field="next"]').value,
+            };
+            if (wrapper.querySelector('[data-field="default"]').checked) {
+              updatedFork.default = true;
+            } else {
+              updatedFork.when_any = wrapper
+                .querySelector('[data-field="when-any"]')
+                .value.split(",")
+                .map((term) => term.trim())
+                .filter(Boolean);
+            }
+            const actionType = wrapper.querySelector('[data-field="fork-action-type"]').value;
+            if (actionType !== "none") {
+              const branchAction = {
+                type: actionType,
+                instruction: wrapper.querySelector('[data-field="fork-action-instruction"]').value.trim(),
+              };
+              if (actionType === "html_app") {
+                branchAction.app_url =
+                  wrapper.querySelector('[data-field="fork-app-url"]').value.trim() || `apps/${newForkId}.html`;
+              }
+              if (actionType === "microservice") {
+                try {
+                  branchAction.url = wrapper.querySelector('[data-field="fork-service-url"]').value.trim();
+                  branchAction.method = wrapper.querySelector('[data-field="fork-service-method"]').value;
+                  branchAction.headers = parseJsonObject(
+                    wrapper.querySelector('[data-field="fork-service-headers"]').value
+                  );
+                  branchAction.payload_template = parseJsonObject(
+                    wrapper.querySelector('[data-field="fork-service-payload"]').value
+                  );
+                } catch (error) {
+                  setStatus(`Fork microservice JSON is invalid: ${error.message}`, "error");
+                  return;
+                }
+              }
+              updatedFork.action = branchAction;
+            }
+            delete stage.forks[forkId];
+            stage.forks[newForkId] = updatedFork;
+            setStatus("Fork changes applied locally. Click Save YAML to persist.", "ok");
+            render();
+          });
+          wrapper.querySelector('[data-action="delete"]').addEventListener("click", () => {
+            if (Object.keys(stage.forks).length === 1) {
+              setStatus("A stage must keep at least one fork.", "error");
+              return;
+            }
+            delete stage.forks[forkId];
+            render();
+          });
+          list.appendChild(wrapper);
+        });
+      }
+
+      function addFork() {
+        const stage = currentStage();
+        const forkId = `alternative_${Object.keys(stage.forks || {}).length + 1}`;
+        stage.forks = stage.forks || {};
+        stage.forks[forkId] = {
+          when_any: ["new condition"],
+          next: "finalize",
+        };
+        render();
+      }
+
+      function renderGraph() {
+        const intent = currentIntent();
+        const stageIds = Object.keys(intent.stages);
+        const width = Math.max(820, stageIds.length * 240);
+        const height = 420;
+        const centerY = 160;
+        const nodeWidth = 190;
+        const nodeHeight = 72;
+        const positions = new Map();
+        positions.set("classify", { x: 24, y: centerY });
+        stageIds.forEach((stageId, index) => {
+          positions.set(stageId, { x: 260 + index * 230, y: index % 2 === 0 ? 76 : 238 });
+        });
+        positions.set("finalize", { x: 260 + stageIds.length * 230, y: centerY });
+
+        const edgeMarkup = [];
+        edgeMarkup.push(edgeSvg(positions.get("classify"), positions.get(intent.start_stage), "start"));
+        stageIds.forEach((stageId) => {
+          const stage = intent.stages[stageId];
+          Object.entries(stage.forks || {}).forEach(([forkId, fork]) => {
+            const forkLabel = fork.action ? `${forkId} [${fork.action.type}]` : forkId;
+            edgeMarkup.push(edgeSvg(positions.get(stageId), positions.get(fork.next), forkLabel));
+          });
+        });
+
+        const nodeMarkup = [
+          nodeSvg("classify", "Intent classifier", `keywords: ${(intent.keywords || []).length}`, positions.get("classify"), ""),
+          ...stageIds.map((stageId) => {
+            const stage = intent.stages[stageId];
+            const classes = [
+              stageId === selectedStageId ? "selected" : "",
+              stage.action.type === "html_app" ? "html" : "",
+            ].join(" ");
+            const startLabel = stageId === intent.start_stage ? "start stage" : stage.action.type;
+            return nodeSvg(stageId, stage.title, startLabel, positions.get(stageId), classes);
+          }),
+          nodeSvg("finalize", "Finalize", "return response", positions.get("finalize"), ""),
+        ];
+
+        $("graph").innerHTML = `
+          <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+            ${edgeMarkup.join("")}
+            ${nodeMarkup.join("")}
+          </svg>
+        `;
+        stageIds.forEach((stageId) => {
+          const node = document.querySelector(`[data-stage-id="${stageId}"]`);
+          node?.addEventListener("click", () => {
+            selectedStageId = stageId;
+            render();
+          });
+        });
+      }
+
+      function edgeSvg(from, to, label) {
+        if (!from || !to) {
+          return "";
+        }
+        const x1 = from.x + 190;
+        const y1 = from.y + 36;
+        const x2 = to.x;
+        const y2 = to.y + 36;
+        const midX = (x1 + x2) / 2;
+        const midY = (y1 + y2) / 2;
+        return `
+          <path d="M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}" fill="none" stroke="#64748b" stroke-width="1.5" />
+          <circle cx="${x2}" cy="${y2}" r="3.5" fill="#60a5fa" />
+          <text x="${midX - 32}" y="${midY - 6}" fill="#9ca3af" font-size="11">${escapeHtml(label)}</text>
+        `;
+      }
+
+      function nodeSvg(id, title, subtitle, position, classes) {
+        const dataAttr = id === "classify" || id === "finalize" ? "" : `data-stage-id="${id}"`;
+        return `
+          <g class="node ${classes}" ${dataAttr} transform="translate(${position.x}, ${position.y})">
+            <rect width="190" height="72" rx="10"></rect>
+            <text x="12" y="27" fill="#e5e7eb" font-size="13" font-weight="700">${escapeHtml(title).slice(0, 28)}</text>
+            <text x="12" y="50" fill="#9ca3af" font-size="11">${escapeHtml(subtitle).slice(0, 30)}</text>
+          </g>
+        `;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      $("saveBtn").addEventListener("click", saveWorkflow);
+      $("validateBtn").addEventListener("click", validateWorkflow);
+      $("addIntentBtn").addEventListener("click", addIntent);
+      $("applyIntentBtn").addEventListener("click", applyIntentChanges);
+      $("addStageBtn").addEventListener("click", addStage);
+      $("applyStageBtn").addEventListener("click", applyStageChanges);
+      $("deleteStageBtn").addEventListener("click", deleteStage);
+      $("addForkBtn").addEventListener("click", addFork);
+      $("stageSelect").addEventListener("change", (event) => {
+        selectedStageId = event.target.value;
+        render();
+      });
+
+      loadWorkflow().catch((error) => {
+        setStatus(`Could not load workflow: ${error.message}`, "error");
+      });
+    </script>
+  </body>
+</html>

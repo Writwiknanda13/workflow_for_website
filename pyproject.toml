@@ -1,0 +1,19 @@
+[project]
+name = "langgraph-intent-workflow"
+version = "0.1.0"
+description = "Intent-driven LangGraph workflow with maintainable decision mappings and HTML app action hooks."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "langgraph",
+    "pydantic",
+    "pyyaml",
+    "uvicorn",
+]
+
+[project.scripts]
+intent-workflow = "intent_workflow.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

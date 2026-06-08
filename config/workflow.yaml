@@ -1,0 +1,227 @@
+workflow:
+  name: Agentic AMS Intent Workflow
+  default_intent: incident_management
+intents:
+  data_migration:
+    label: Data Migration
+    description: Move, cleanse, validate, and reconcile enterprise data between systems.
+    keywords:
+    - migration
+    - migrate
+    - legacy
+    - cutover
+    - data
+    - cleansing
+    - validation
+    start_stage: assess_source
+    stages:
+      assess_source:
+        title: Assess source and target systems
+        action:
+          type: checklist
+          instruction: Capture source system, target system, volume, object scope,
+            and data quality risks.
+        forks:
+          high_volume:
+            when_any:
+            - high volume
+            - large volume
+            - millions
+            - cutover
+            next: migration_factory
+          standard:
+            default: true
+            next: cleansing_plan
+      migration_factory:
+        title: Launch migration factory planner
+        action:
+          type: html_app
+          app_url: apps/data_migration.html
+          instruction: Open the migration factory planner for wave design and reconciliation
+            tracking.
+        forks:
+          complete:
+            default: true
+            next: finalize
+      cleansing_plan:
+        title: Define cleansing and validation plan
+        action:
+          type: checklist
+          instruction: Define cleansing rules, mapping rules, validation ownership,
+            and defect triage.
+        forks:
+          complete:
+            default: true
+            next: finalize
+  system_configuration:
+    label: System Configuration
+    description: Configure applications, parameters, roles, workflows, and integration
+      settings.
+    keywords:
+    - configuration
+    - configure
+    - setup
+    - role
+    - parameter
+    - workflow
+    - integration
+    start_stage: classify_change
+    stages:
+      classify_change:
+        title: Classify configuration change
+        action:
+          type: checklist
+          instruction: Identify module, configuration object, transport path, dependency,
+            and approval need.
+        forks:
+          needs_design:
+            when_any:
+            - new design
+            - new workflow
+            - integration
+            - complex
+            next: design_review
+          simple_update:
+            default: true
+            next: config_app
+      design_review:
+        title: Run design and dependency review
+        action:
+          type: checklist
+          instruction: Validate fit-gap, downstream dependencies, security impact,
+            and testing scope.
+        forks:
+          complete:
+            default: true
+            next: config_app
+      config_app:
+        title: Open configuration workbench
+        action:
+          type: html_app
+          app_url: apps/system_configuration.html
+          instruction: Use the configuration workbench to record settings, owners,
+            evidence, and test status.
+        forks:
+          complete:
+            default: true
+            next: finalize
+  incident_management:
+    label: Incident Management
+    description: Triage, route, resolve, and prevent recurring incidents.
+    keywords:
+    - incident
+    - outage
+    - issue
+    - ticket
+    - bug
+    - failure
+    - broken
+    start_stage: triage
+    stages:
+      triage:
+        title: Triage severity and impact
+        action:
+          type: checklist
+          instruction: Capture affected users, business process, severity, workaround,
+            SLA, and evidence.
+        forks:
+          critical:
+            when_any:
+            - critical
+            - sev1
+            - severity 1
+            - outage
+            - production down
+            next: command_center
+            action:
+              type: html_app
+              app_url: apps/incident_management.html
+              instruction: Open the incident command center immediately for this critical
+                branch.
+          standard:
+            default: true
+            next: root_cause
+      command_center:
+        title: Open incident command center
+        action:
+          type: html_app
+          app_url: apps/incident_management.html
+          instruction: Open the command center to coordinate bridge notes, owners,
+            SLA, and updates.
+        forks:
+          complete:
+            default: true
+            next: root_cause
+      root_cause:
+        title: Root cause and corrective action
+        action:
+          type: checklist
+          instruction: Determine root cause, corrective action, preventive action,
+            and closure evidence.
+        forks:
+          complete:
+            default: true
+            next: finalize
+  business_process_improvement:
+    label: Business Process Improvement
+    description: Identify, evaluate, and implement process optimization opportunities.
+    keywords:
+    - process improvement
+    - improve
+    - optimization
+    - automation
+    - efficiency
+    - waste
+    - bottleneck
+    start_stage: opportunity
+    stages:
+      opportunity:
+        title: Define improvement opportunity
+        action:
+          type: checklist
+          instruction: Capture current process, pain points, volume, cycle time, owners,
+            and expected benefit.
+        forks:
+          automation_candidate:
+            when_any:
+            - automation
+            - bot
+            - repetitive
+            - manual
+            next: automation_canvas
+            action:
+              type: microservice
+              method: POST
+              url: http://localhost:9000/automation-score
+              instruction: Send the automation candidate branch context to the scoring
+                microservice.
+              headers:
+                Content-Type: application/json
+              payload_template:
+                intent: business_process_improvement
+                branch: automation_candidate
+                selected_stage: opportunity
+          process_redesign:
+            default: true
+            next: improvement_plan
+      automation_canvas:
+        title: Open automation opportunity canvas
+        action:
+          type: html_app
+          app_url: apps/business_process_improvement.html
+          instruction: Use the canvas to score automation effort, benefits, controls,
+            and implementation path.
+        forks:
+          complete:
+            default: true
+            next: finalize
+      improvement_plan:
+        title: Build improvement plan
+        action:
+          type: checklist
+          instruction: Define future process, KPI baseline, benefit hypothesis, change
+            impact, and rollout plan.
+        forks:
+          complete:
+            default: true
+            next: finalize
