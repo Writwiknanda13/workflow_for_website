@@ -3,7 +3,7 @@ workflow:
   default_intent: incident_management
 intents:
   data_migration:
-    label: Data Migration
+    label: Data Migration Agents
     description: Move, cleanse, validate, and reconcile enterprise data between systems.
     keywords:
     - migration
@@ -16,47 +16,67 @@ intents:
     start_stage: assess_source
     stages:
       assess_source:
-        title: Assess source and target systems
+        title: Identify source and target systems
         action:
           type: checklist
           instruction: Capture source system, target system, volume, object scope,
             and data quality risks.
         forks:
-          high_volume:
+          master_data:
+            next: master_data
+            description: Master Data Objects e.g. Customer, Vendor, Materials, BoM,
+              Organization structure, Referential data
             when_any:
-            - high volume
-            - large volume
-            - millions
-            - cutover
-            next: migration_factory
-          standard:
-            default: true
-            next: cleansing_plan
-      migration_factory:
-        title: Launch migration factory planner
+            - Customer
+            - Accounts
+            - Vendors
+            - Suppliers
+            - Materials
+            - Products
+            - Bill of Materials
+          transaction_data:
+            next: transaction_data
+            description: Take this path for transaction data e.g. Sales Order, Purchase
+              Order, Production Order, Delivery, Invoices, AP and AR posting etc
+            when_any:
+            - Sales Order
+            - Quotation
+            - Purchase Order
+            - Production Order
+            - Delivery
+            - Invoices
+            - AP and AR posting
+        description: Identify Source and Target Systems  - e,g, Source as ECC and
+          Target as S4H
+      master_data:
+        title: Master_Data_Migration
         action:
           type: html_app
+          instruction: Identify Master Data objects in scope such as Customer, Material,
+            Vendor, Price, Inventory, Bill Of Material and their corresponding Migration
+            Agents
           app_url: apps/data_migration.html
-          instruction: Open the migration factory planner for wave design and reconciliation
-            tracking.
         forks:
           complete:
             default: true
             next: finalize
-      cleansing_plan:
-        title: Define cleansing and validation plan
+      transaction_data:
+        title: Transaction_Data_Migration
         action:
-          type: checklist
-          instruction: Define cleansing rules, mapping rules, validation ownership,
-            and defect triage.
+          type: html_app
+          instruction: Invoke for migrating sales quotation, sales order, purchase
+            order, production order, invoices, account posting etc.
+          app_url: apps/transaction_data.html
         forks:
           complete:
             default: true
             next: finalize
+        description: For objects like Sales Order, Sales Quotation, Purchase Order,
+          Production Order, Invoices
   system_configuration:
-    label: System Configuration
-    description: Configure applications, parameters, roles, workflows, and integration
-      settings.
+    label: Agentic System Configuration
+    description: Business rules, Configure applications, parameters, roles, workflows,
+      and integration settings.
     keywords:
     - configuration
     - configure
@@ -65,48 +85,112 @@ intents:
     - parameter
     - workflow
     - integration
-    start_stage: classify_change
+    start_stage: requirement_analysis
     stages:
-      classify_change:
-        title: Classify configuration change
-        action:
-          type: checklist
-          instruction: Identify module, configuration object, transport path, dependency,
-            and approval need.
-        forks:
-          needs_design:
-            when_any:
-            - new design
-            - new workflow
-            - integration
-            - complex
-            next: design_review
-          simple_update:
-            default: true
-            next: config_app
-      design_review:
-        title: Run design and dependency review
-        action:
-          type: checklist
-          instruction: Validate fit-gap, downstream dependencies, security impact,
-            and testing scope.
-        forks:
-          complete:
-            default: true
-            next: config_app
-      config_app:
-        title: Open configuration workbench
+      requirement_analysis:
+        title: Requirement Analysis
         action:
           type: html_app
-          app_url: apps/system_configuration.html
+          instruction: Requirement Analysis  by domains - Sales and Distribution,
+            Manufacturing, Procurement, Inventory Management, Warehouse Management,
+            Transportation Planning and Execution, Finance and Controlling , Finance
+            Planning and Analysis, Sales and Operations Planning, Materials Requirement
+            Planning, Supply Chain Planning. Identify domain, arbitrate ownership,
+            resolve conflicting requirements with priority and rational , retain key
+            decisions for traceability
+          app_url: apps/requirement_analysis.html
+        forks:
+          configure:
+            next: configuration
+            description: Instruction to configure based on requirements.
+            when_any:
+            - instructions for configurations
+            - customizations
+            - workflows forms and reports
+        description: Requirement Analysis  by domains - Sales and Distribution, Manufacturing,
+          Procurement, Inventory Management, Warehouse Management, Transportation
+          Planning and Execution, Finance and Controlling , Finance Planning and Analysis,
+          Sales and Operations Planning, Materials Requirement Planning, Supply Chain
+          Planning.
+      configuration:
+        title: Agentic Configuration
+        action:
+          type: html_app
+          instruction: Identification of configuration steps, business rule activation
+            parameters, customizations, reports, forms and workflows.  Readiness to
+            execute configuration. Based on human confirmation triggering configuration.
+            Validate fit-gap, downstream dependencies, security impact, and testing
+            scope.
+          app_url: apps/configuration.html
+        forks:
+          enterprise_relevance:
+            next: enterprise_consistency
+            description: Periodic synchronization with existing configuration
+            when_any:
+            - Periodic synchronization with existing configuration
+            - compare with proposed configuration
+            - identify potential conflicts and trigger deterministic resolutions
+            action:
+              type: html_app
+              instruction: Extract existing configuration, compare with proposed ,
+                share potential conflicts and provide deterministic resolutions
+              app_url: apps/enterprise_relevance.html
+          execute:
+            next: execute_config
+            description: Execute Configuration
+            when_any:
+            - new condition
+        description: Identification of configuration steps, business rule activation
+          parameters, customizations, reports, forms and workflows.  Readiness to
+          execute configuration. Based on human confirmation triggering configuration.
+      enterprise_consistency:
+        title: Compare Configuration
+        action:
+          type: html_app
           instruction: Use the configuration workbench to record settings, owners,
             evidence, and test status.
+          app_url: apps/system_configuration.html
+        forks:
+          execute:
+            next: execute_config
+            description: Integrate with apps to configure as per final agreed configuration
+            when_any:
+            - New Configuration
+            - Modify Configuration
+            - New/Modify customization
+            - workflows
+            - reports and forms
+      execute_config:
+        title: Execute_Config
+        action:
+          type: html_app
+          instruction: Execute Configuration by logging into the system
+          app_url: apps/stage_4.html
+        forks:
+          verify_confirm:
+            next: test_confirm
+            description: Test the configuration with data and create transactions
+            when_any:
+            - new condition
+        description: Execute Configuration by logging into the system
+      test_confirm:
+        title: Test and Confirm
+        action:
+          type: html_app
+          instruction: Describe this action.
+          app_url: apps/test_confirm.html
         forks:
           complete:
             default: true
             next: finalize
+          link_2:
+            when_any:
+            - new condition
+            next: incident_management:root_cause
+        description: Test the newly created configuration in the system with data
+          and create validation transactions to check the outcome of configurations
   incident_management:
-    label: Incident Management
+    label: Agentic Incident Management
     description: Triage, route, resolve, and prevent recurring incidents.
     keywords:
     - incident
@@ -119,39 +203,44 @@ intents:
     start_stage: triage
     stages:
       triage:
-        title: Triage severity and impact
+        title: Triage tickets to Queues
         action:
-          type: checklist
+          type: html_app
           instruction: Capture affected users, business process, severity, workaround,
-            SLA, and evidence.
+            SLA, ticket owner, and evidence.
+          app_url: apps/triage.html
         forks:
-          critical:
+          queues:
+            next: tkt_resol
+            description: Ticket Queue and Arbitration
             when_any:
             - critical
             - sev1
             - severity 1
             - outage
             - production down
-            next: command_center
-            action:
-              type: html_app
-              app_url: apps/incident_management.html
-              instruction: Open the incident command center immediately for this critical
-                branch.
-          standard:
-            default: true
-            next: root_cause
-      command_center:
-        title: Open incident command center
+          link_2:
+            when_any:
+            - new condition
+            next: system_configuration:configuration
+        description: Triage the logged incidents on priority/severity, SLA, complexity,
+          categorization based on incident details. Automated based on weightage factors
+          defined and trained by the AI model.
+      tkt_resol:
+        title: Agentic Ticket Solution
         action:
           type: html_app
+          instruction: Every queue is owned by an agent.  The agent resolves the ticket
+            with suggested steps based on their knowledge model.
           app_url: apps/incident_management.html
-          instruction: Open the command center to coordinate bridge notes, owners,
-            SLA, and updates.
         forks:
-          complete:
-            default: true
+          knowledge_base_and_training:
             next: root_cause
+            description: Knowledge Base and Training
+            when_any:
+            - Knowledge Base and Training
+        description: Every queue is owned by an agent.  The agent resolves the ticket
+          with suggested steps based on their knowledge model.
       root_cause:
         title: Root cause and corrective action
         action:
@@ -162,9 +251,14 @@ intents:
           complete:
             default: true
             next: finalize
+          alternative_2:
+            when_any:
+            - new condition
+            next: finalize
   business_process_improvement:
-    label: Business Process Improvement
-    description: Identify, evaluate, and implement process optimization opportunities.
+    label: Business Process Improvement Agents
+    description: Identify, evaluate, and implement process optimization opportunities,
+      EBITDA impact, monetization opportunities
     keywords:
     - process improvement
     - improve
@@ -176,51 +270,96 @@ intents:
     start_stage: opportunity
     stages:
       opportunity:
-        title: Define improvement opportunity
-        action:
-          type: checklist
-          instruction: Capture current process, pain points, volume, cycle time, owners,
-            and expected benefit.
-        forks:
-          automation_candidate:
-            when_any:
-            - automation
-            - bot
-            - repetitive
-            - manual
-            next: automation_canvas
-            action:
-              type: microservice
-              method: POST
-              url: http://localhost:9000/automation-score
-              instruction: Send the automation candidate branch context to the scoring
-                microservice.
-              headers:
-                Content-Type: application/json
-              payload_template:
-                intent: business_process_improvement
-                branch: automation_candidate
-                selected_stage: opportunity
-          process_redesign:
-            default: true
-            next: improvement_plan
-      automation_canvas:
-        title: Open automation opportunity canvas
+        title: Define Opportunity
         action:
           type: html_app
-          app_url: apps/business_process_improvement.html
-          instruction: Use the canvas to score automation effort, benefits, controls,
-            and implementation path.
+          instruction: Define opportunity, Define use cases, epics,  features and
+            stories by industry, domain and LoB. Identify EBITDA impact and monetization
+            numbers. Provide Future Process, KPI baseline and Change impacts.Capture
+            current process, pain points, volume, cycle time, owners, and expected
+            benefit.
+          app_url: apps/opportunity.html
+        forks:
+          define_enterprise_consistency:
+            next: knowledge_model
+            description: Define scope of logically complete boundary of Business Process
+              Improvement
+            default: true
+        description: Define opportunity, Define use cases, epics,  features and stories
+          by industry, domain and LoB. Identify EBITDA impact and monetization numbers.  Provide
+          Future Process, KPI baseline and Change impacts.  Capture current process,
+          pain points, volume, cycle time, owners, and expected benefit.
+      knowledge_model:
+        title: Domain Knowledge
+        action:
+          type: html_app
+          instruction: Build and connect to domain knowledge model
+          app_url: apps/knowledge_model.html
+        forks:
+          define_action:
+            next: integration
+            description: Integration definition across landscape
+            when_any:
+            - Integration definition across landscape
+        description: Opportunity specific domain knowledge model
+      integration:
+        title: Integration Model across landscape
+        action:
+          type: html_app
+          instruction: Build Integration architecture across landscape for activity
+            exchange
+          app_url: apps/realization_plan.html
+        forks:
+          access_modeling:
+            next: user_portal
+            description: Role Based Portal Modeling
+            default: true
+        description: Build Integration architecture across landscape for activity
+          exchange
+      user_portal:
+        title: Portal Modeling
+        action:
+          type: html_app
+          instruction: Role based User Portal with KPI, Guidance with potential risks
+            and opportunities for proactive and potentially autonomous execution
+          app_url: apps/user_portal.html
         forks:
           complete:
-            default: true
             next: finalize
-      improvement_plan:
-        title: Build improvement plan
+            when_any: []
+          link_2:
+            when_any:
+            - new condition
+            next: role_based_agents:deployment
+        description: Role based User Portal with KPI, Guidance with potential risks
+          and opportunities for proactive and potentially autonomous execution
+  role_based_agents:
+    label: Role based Agents
+    description: Role based control tower agent
+    keywords:
+    - Control Tower Agent
+    - Exception based guidance of day in office
+    - Role based agent
+    - Guidance  to Management by Exception
+    start_stage: identify_roles
+    stages:
+      identify_roles:
+        title: Identify Business Roles
         action:
-          type: checklist
-          instruction: Define future process, KPI baseline, benefit hypothesis, change
-            impact, and rollout plan.
+          type: html_app
+          instruction: Define the first action for this intent.
+          app_url: apps/identify_roles.html
+        forks:
+          link_2:
+            when_any:
+            - new condition
+            next: business_process_improvement:knowledge_model
+      deployment:
+        title: Deployment
+        action:
+          type: html_app
+          instruction: Describe this action.
+          app_url: apps/deployment.html
         forks:
           complete:
             default: true

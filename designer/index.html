@@ -3,6 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>LangGraph Workflow Designer</title>
     <style>
       :root {
@@ -22,11 +25,18 @@
         box-sizing: border-box;
       }
 
+      html,
+      body {
+        height: 100%;
+      }
+
       body {
         margin: 0;
         background: var(--bg);
         color: var(--text);
         font-family: Arial, Helvetica, sans-serif;
+        display: flex;
+        flex-direction: column;
       }
 
       header {
@@ -37,6 +47,10 @@
         padding: 18px 22px;
         border-bottom: 1px solid var(--line);
         background: var(--panel);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        flex-shrink: 0;
       }
 
       h1,
@@ -106,8 +120,10 @@
 
       .layout {
         display: grid;
-        grid-template-columns: 280px minmax(480px, 1fr) 390px;
-        min-height: calc(100vh - 73px);
+        grid-template-columns: minmax(260px, 300px) minmax(500px, 1fr) minmax(360px, 420px);
+        flex: 1 1 auto;
+        min-height: 0;
+        align-items: start;
       }
 
       .layout > * {
@@ -119,7 +135,12 @@
         padding: 18px;
         border-right: 1px solid var(--line);
         background: var(--panel);
-        overflow: auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+        position: sticky;
+        top: 0;
+        max-height: 100vh;
+        box-sizing: border-box;
       }
 
       .inspector {
@@ -129,7 +150,7 @@
 
       .canvas {
         padding: 18px;
-        overflow: auto;
+        overflow: visible;
         min-width: 0;
       }
 
@@ -206,9 +227,9 @@
       .graph-wrap {
         width: 100%;
         max-width: 100%;
-        min-width: 760px;
+        min-width: 0;
         overflow-x: auto;
-        overflow-y: hidden;
+        overflow-y: visible;
         border: 1px solid var(--line);
         border-radius: 12px;
         background: #0b1220;
@@ -254,6 +275,30 @@
         padding-top: 10px;
       }
 
+      .fork-action-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        color: var(--muted);
+        font-size: 12px;
+        user-select: none;
+        margin-bottom: 6px;
+      }
+
+      .fork-action-toggle:hover {
+        color: var(--text);
+      }
+
+      .fork-action-body {
+        display: grid;
+        gap: 10px;
+      }
+
+      .fork-action-body.collapsed {
+        display: none;
+      }
+
       .status {
         min-height: 20px;
         color: var(--muted);
@@ -271,6 +316,61 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px;
+      }
+
+      .reorder-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .reorder-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0b1220;
+        cursor: grab;
+        user-select: none;
+      }
+
+      .reorder-row.active {
+        border-color: var(--accent);
+      }
+
+      .reorder-label {
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .drag-handle {
+        cursor: grab;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1;
+        letter-spacing: -2px;
+      }
+
+      .drag-handle:active {
+        cursor: grabbing;
+      }
+
+      .fork-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .dragging {
+        opacity: 0.5;
+      }
+
+      .drop-target {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
       }
     </style>
   </head>
@@ -294,6 +394,23 @@
             <button id="addIntentBtn">Add</button>
           </div>
           <div id="intentList" class="intent-list"></div>
+          <div class="card stack">
+            <h3>New Intent</h3>
+            <label>
+              Label
+              <input id="newIntentLabel" placeholder="e.g. Access Request" />
+            </label>
+            <label>
+              Description
+              <textarea id="newIntentDescription" placeholder="Describe what this LangGraph flow handles."></textarea>
+            </label>
+            <label>
+              Trigger Keywords
+              <textarea id="newIntentKeywords" placeholder="Comma separated terms that route a message to this flow"></textarea>
+            </label>
+            <button id="createIntentBtn" class="primary">Create Intent &amp; Save</button>
+            <div class="muted small">Creates a new intent flow and saves it to config/workflow.yaml immediately.</div>
+          </div>
           <div class="card stack">
             <h3>Workflow</h3>
             <label>
@@ -319,6 +436,9 @@
               <span id="stageCount" class="pill"></span>
               <span id="htmlCount" class="pill html"></span>
               <span id="serviceCount" class="pill service"></span>
+              <span class="pill" style="border-color:#fb923c;color:#fb923c;">cross-intent edges</span>
+              <button id="resetLayoutBtn" style="font-size:11px;padding:4px 9px;">Reset Layout</button>
+              <button id="exportPngBtn" style="font-size:11px;padding:4px 9px;">Export PNG</button>
             </div>
           </div>
           <div id="graph" class="graph-wrap"></div>
@@ -352,7 +472,10 @@
               Start Stage
               <select id="startStage"></select>
             </label>
-            <button id="applyIntentBtn">Apply Intent Changes</button>
+            <div class="split">
+              <button id="applyIntentBtn">Apply Intent Changes</button>
+              <button id="deleteIntentBtn" class="danger">Delete Intent</button>
+            </div>
           </div>
 
           <div class="card stack">
@@ -360,6 +483,8 @@
               <h3>Stages</h3>
               <button id="addStageBtn">Add Stage</button>
             </div>
+            <div class="muted small">Drag &#9783; to reorder the stage sequence. Click a row to edit it.</div>
+            <div id="stageOrder" class="reorder-list"></div>
             <label>
               Selected Stage
               <select id="stageSelect"></select>
@@ -371,6 +496,10 @@
             <label>
               Title
               <input id="stageTitle" />
+            </label>
+            <label>
+              Description
+              <textarea id="stageDescription" placeholder="Describe what this stage does."></textarea>
             </label>
             <label>
               Action Type
@@ -427,6 +556,11 @@
       let workflowConfig = null;
       let selectedIntentId = null;
       let selectedStageId = null;
+      const graphPositions = new Map();  // key: `${intentId}:${nodeId}` → {x, y}
+      const graphViewport = new Map();   // key: intentId → {tx, ty, scale}
+      let connectState = null;           // active drag-to-connect session
+      const edgeBends    = new Map();    // key: edgeId → {bx, by}  — user-dragged Bezier bend offsets
+      const groupMinSize = new Map();    // key: intentId → {w, h}  — user-set minimum group dimensions
 
       const $ = (id) => document.getElementById(id);
 
@@ -437,6 +571,21 @@
           .replace(/[^a-z0-9]+/g, "_")
           .replace(/^_+|_+$/g, "");
         return slug || fallback;
+      }
+
+      function reorderObject(source, orderedKeys) {
+        const result = {};
+        orderedKeys.forEach((key) => {
+          if (key in source) {
+            result[key] = source[key];
+          }
+        });
+        Object.keys(source).forEach((key) => {
+          if (!(key in result)) {
+            result[key] = source[key];
+          }
+        });
+        return result;
       }
 
       function currentIntent() {
@@ -500,6 +649,13 @@
         workflowConfig = await response.json();
         setStatus("Saved config/workflow.yaml. LangGraph will use the updated mapping on the next invoke.", "ok");
         render();
+      }
+
+      async function persist(successMessage) {
+        await saveWorkflow();
+        if (successMessage && $("status").classList.contains("ok")) {
+          setStatus(successMessage, "ok");
+        }
       }
 
       async function validateWorkflow() {
@@ -582,7 +738,7 @@
         startStage.value = intent.start_stage;
       }
 
-      function applyIntentChanges() {
+      async function applyIntentChanges() {
         const oldIntentId = selectedIntentId;
         const newIntentId = slugify($("intentId").value, oldIntentId);
         const intent = currentIntent();
@@ -602,8 +758,51 @@
           }
           selectedIntentId = newIntentId;
         }
-        setStatus("Intent changes applied locally. Click Save YAML to persist.", "ok");
         render();
+        await persist("Saved intent changes to config/workflow.yaml.");
+      }
+
+      function renderStageOrder(intent) {
+        const container = $("stageOrder");
+        container.innerHTML = "";
+        const stageKeys = Object.keys(intent.stages);
+        let dragIndex = null;
+        stageKeys.forEach((stageId, index) => {
+          const stage = intent.stages[stageId];
+          const row = document.createElement("div");
+          row.className = `reorder-row ${stageId === selectedStageId ? "active" : ""}`;
+          row.draggable = true;
+          const startTag = stageId === intent.start_stage ? " &middot; start" : "";
+          row.innerHTML = `<span class="drag-handle">&#9783;</span><span class="reorder-label">${index + 1}. ${escapeHtml(stage.title || stageId)}${startTag}</span>`;
+          row.addEventListener("dragstart", (event) => {
+            dragIndex = index;
+            row.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+          });
+          row.addEventListener("dragend", () => row.classList.remove("dragging"));
+          row.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            row.classList.add("drop-target");
+          });
+          row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+          row.addEventListener("drop", async (event) => {
+            event.preventDefault();
+            row.classList.remove("drop-target");
+            if (dragIndex === null || dragIndex === index) {
+              return;
+            }
+            const keys = [...stageKeys];
+            const [moved] = keys.splice(dragIndex, 1);
+            keys.splice(index, 0, moved);
+            intent.stages = reorderObject(intent.stages, keys);
+            await persist("Stage sequence updated and saved to config/workflow.yaml.");
+          });
+          row.addEventListener("click", () => {
+            selectedStageId = stageId;
+            render();
+          });
+          container.appendChild(row);
+        });
       }
 
       function renderStageInspector() {
@@ -611,6 +810,7 @@
         if (!intent.stages[selectedStageId]) {
           selectedStageId = intent.start_stage || Object.keys(intent.stages)[0];
         }
+        renderStageOrder(intent);
         const stageSelect = $("stageSelect");
         stageSelect.innerHTML = "";
         Object.entries(intent.stages).forEach(([stageId, stage]) => {
@@ -624,6 +824,7 @@
         const stage = currentStage();
         $("stageId").value = selectedStageId;
         $("stageTitle").value = stage.title || "";
+        $("stageDescription").value = stage.description || "";
         $("actionType").value = stage.action.type || "checklist";
         $("actionInstruction").value = stage.action.instruction || "";
         $("appUrl").value = stage.action.app_url || "";
@@ -633,12 +834,18 @@
         renderForks();
       }
 
-      function applyStageChanges() {
+      async function applyStageChanges() {
         const intent = currentIntent();
         const oldStageId = selectedStageId;
         const newStageId = slugify($("stageId").value, oldStageId);
         const stage = currentStage();
         stage.title = $("stageTitle").value.trim() || newStageId;
+        const stageDescription = $("stageDescription").value.trim();
+        if (stageDescription) {
+          stage.description = stageDescription;
+        } else {
+          delete stage.description;
+        }
         stage.action = {
           type: $("actionType").value,
           instruction: $("actionInstruction").value.trim(),
@@ -672,16 +879,26 @@
           });
           selectedStageId = newStageId;
         }
-        setStatus("Stage changes applied locally. Click Save YAML to persist.", "ok");
         render();
+        await persist("Saved stage changes to config/workflow.yaml.");
       }
 
-      function addIntent() {
-        const baseId = `new_intent_${Object.keys(workflowConfig.intents).length + 1}`;
-        workflowConfig.intents[baseId] = {
-          label: "New Intent",
-          description: "Describe the new intent.",
-          keywords: ["new intent"],
+      function uniqueIntentId(base) {
+        if (!workflowConfig.intents[base]) {
+          return base;
+        }
+        let suffix = 2;
+        while (workflowConfig.intents[`${base}_${suffix}`]) {
+          suffix += 1;
+        }
+        return `${base}_${suffix}`;
+      }
+
+      function newIntentTemplate(label, description, keywords) {
+        return {
+          label,
+          description,
+          keywords,
           start_stage: "start",
           stages: {
             start: {
@@ -699,14 +916,81 @@
             },
           },
         };
+      }
+
+      function addIntent() {
+        const baseId = uniqueIntentId(`new_intent_${Object.keys(workflowConfig.intents).length + 1}`);
+        workflowConfig.intents[baseId] = newIntentTemplate("New Intent", "Describe the new intent.", ["new intent"]);
         selectedIntentId = baseId;
         selectedStageId = "start";
         render();
       }
 
-      function addStage() {
+      async function createIntent() {
+        const label = $("newIntentLabel").value.trim();
+        if (!label) {
+          setStatus("Enter a label for the new intent.", "error");
+          return;
+        }
+        const description = $("newIntentDescription").value.trim() || `Handle ${label} requests.`;
+        const keywords = $("newIntentKeywords").value
+          .split(",")
+          .map((keyword) => keyword.trim())
+          .filter(Boolean);
+        if (keywords.length === 0) {
+          keywords.push(label.toLowerCase());
+        }
+        const intentId = uniqueIntentId(slugify(label, `intent_${Object.keys(workflowConfig.intents).length + 1}`));
+        workflowConfig.intents[intentId] = newIntentTemplate(label, description, keywords);
+        selectedIntentId = intentId;
+        selectedStageId = "start";
+        $("newIntentLabel").value = "";
+        $("newIntentDescription").value = "";
+        $("newIntentKeywords").value = "";
+        render();
+        await saveWorkflow();
+        if ($("status").classList.contains("ok")) {
+          setStatus(
+            `Created and saved intent "${label}". It drives a new LangGraph flow on the next invoke.`,
+            "ok"
+          );
+        }
+      }
+
+      async function deleteIntent() {
+        if (Object.keys(workflowConfig.intents).length === 1) {
+          setStatus("The workflow must keep at least one intent.", "error");
+          return;
+        }
+        const removedId = selectedIntentId;
+        const removedLabel = currentIntent().label || removedId;
+        if (!window.confirm(`Delete intent "${removedLabel}"? This removes its LangGraph flow.`)) {
+          return;
+        }
+        clearIntentPositions(removedId);
+        delete workflowConfig.intents[removedId];
+        const fallbackId = Object.keys(workflowConfig.intents)[0];
+        if (workflowConfig.workflow.default_intent === removedId) {
+          workflowConfig.workflow.default_intent = fallbackId;
+        }
+        selectedIntentId = fallbackId;
+        const fallbackIntent = workflowConfig.intents[fallbackId];
+        selectedStageId = fallbackIntent.start_stage || Object.keys(fallbackIntent.stages)[0];
+        render();
+        await saveWorkflow();
+        if ($("status").classList.contains("ok")) {
+          setStatus(`Deleted intent "${removedLabel}" and saved.`, "ok");
+        }
+      }
+
+      async function addStage() {
         const intent = currentIntent();
-        const stageId = `stage_${Object.keys(intent.stages).length + 1}`;
+        let counter = Object.keys(intent.stages).length + 1;
+        let stageId = `stage_${counter}`;
+        while (intent.stages[stageId]) {
+          counter += 1;
+          stageId = `stage_${counter}`;
+        }
         intent.stages[stageId] = {
           title: "New Stage",
           action: {
@@ -721,10 +1005,10 @@
           },
         };
         selectedStageId = stageId;
-        render();
+        await persist(`Added stage "${stageId}" and saved to config/workflow.yaml.`);
       }
 
-      function deleteStage() {
+      async function deleteStage() {
         const intent = currentIntent();
         const stageIds = Object.keys(intent.stages);
         if (stageIds.length === 1) {
@@ -744,8 +1028,9 @@
             }
           });
         });
+        graphPositions.delete(`${selectedIntentId}:${deletedStageId}`);
         selectedStageId = fallbackStageId;
-        render();
+        await persist(`Deleted stage "${deletedStageId}" and saved to config/workflow.yaml.`);
       }
 
       function renderForks() {
@@ -753,22 +1038,43 @@
         const intent = currentIntent();
         const list = $("forkList");
         list.innerHTML = "";
-        Object.entries(stage.forks || {}).forEach(([forkId, fork]) => {
+        const forkKeys = Object.keys(stage.forks || {});
+        let forkDragIndex = null;
+        Object.entries(stage.forks || {}).forEach(([forkId, fork], index) => {
           const wrapper = document.createElement("div");
           wrapper.className = "fork";
           wrapper.innerHTML = `
             <div class="stack">
+              <div class="fork-head">
+                <span class="drag-handle" draggable="true" title="Drag to set priority">&#9783;</span>
+                <span class="muted small">Priority ${index + 1} (first match wins)</span>
+              </div>
               <label>
                 Fork ID
                 <input data-field="fork-id" value="${forkId}" />
               </label>
               <label>
+                Description
+                <textarea data-field="fork-description" placeholder="Describe this decision alternative.">${escapeHtml(fork.description || "")}</textarea>
+              </label>
+              <label>
                 Route To
                 <select data-field="next">
-                  ${Object.keys(intent.stages)
-                    .map((stageId) => `<option value="${stageId}">${stageId}</option>`)
+                  <optgroup label="── ${escapeHtml(intent.label || selectedIntentId)} (this intent) ──">
+                    ${Object.keys(intent.stages)
+                      .map((stageId) => `<option value="${stageId}">${stageId}</option>`)
+                      .join("")}
+                    <option value="finalize">finalize</option>
+                  </optgroup>
+                  ${Object.entries(workflowConfig.intents)
+                    .filter(([id]) => id !== selectedIntentId)
+                    .map(([id, cfg]) => `
+                      <optgroup label="── ${escapeHtml(cfg.label || id)} ──">
+                        ${Object.keys(cfg.stages || {})
+                          .map((stageId) => `<option value="${id}:${stageId}">${id}:${stageId}</option>`)
+                          .join("")}
+                      </optgroup>`)
                     .join("")}
-                  <option value="finalize">finalize</option>
                 </select>
               </label>
               <label>
@@ -779,47 +1085,52 @@
                 <input data-field="default" type="checkbox" ${fork.default ? "checked" : ""} />
                 Default fallback
               </label>
-              <div class="fork-action stack">
-                <h3>Branch Action Hook</h3>
-                <label>
-                  Action Type
-                  <select data-field="fork-action-type">
-                    <option value="none">none</option>
-                    <option value="checklist">checklist</option>
-                    <option value="html_app">html_app</option>
-                    <option value="microservice">microservice</option>
-                  </select>
-                </label>
-                <label>
-                  Instruction
-                  <textarea data-field="fork-action-instruction" placeholder="Describe what should happen when this branch is selected.">${escapeHtml(fork.action?.instruction || "")}</textarea>
-                </label>
-                <label>
-                  HTML App URL
-                  <input data-field="fork-app-url" placeholder="apps/example.html" value="${escapeHtml(fork.action?.app_url || "")}" />
-                </label>
-                <label>
-                  Microservice URL
-                  <input data-field="fork-service-url" placeholder="https://service.example.com/run" value="${escapeHtml(fork.action?.url || "")}" />
-                </label>
-                <label>
-                  Microservice Method
-                  <select data-field="fork-service-method">
-                    <option value="GET">GET</option>
-                    <option value="POST">POST</option>
-                    <option value="PUT">PUT</option>
-                    <option value="PATCH">PATCH</option>
-                    <option value="DELETE">DELETE</option>
-                  </select>
-                </label>
-                <label>
-                  Headers JSON
-                  <textarea data-field="fork-service-headers" placeholder='{"Authorization": "Bearer ..."}'>${escapeHtml(JSON.stringify(fork.action?.headers || {}, null, 2))}</textarea>
-                </label>
-                <label>
-                  Payload Template JSON
-                  <textarea data-field="fork-service-payload" placeholder='{"intent": "{{intent}}", "stage": "{{stage}}"}'>${escapeHtml(JSON.stringify(fork.action?.payload_template || {}, null, 2))}</textarea>
-                </label>
+              <div class="fork-action">
+                <div class="fork-action-toggle" data-action="toggle-action">
+                  <span data-toggle-icon>${fork.action ? "▾" : "▸"}</span>
+                  <span>Branch Action Hook${fork.action ? ` · ${fork.action.type}` : ""}</span>
+                </div>
+                <div class="fork-action-body stack ${fork.action ? "" : "collapsed"}">
+                  <label>
+                    Action Type
+                    <select data-field="fork-action-type">
+                      <option value="none">none</option>
+                      <option value="checklist">checklist</option>
+                      <option value="html_app">html_app</option>
+                      <option value="microservice">microservice</option>
+                    </select>
+                  </label>
+                  <label>
+                    Instruction
+                    <textarea data-field="fork-action-instruction" placeholder="Describe what should happen when this branch is selected.">${escapeHtml(fork.action?.instruction || "")}</textarea>
+                  </label>
+                  <label>
+                    HTML App URL
+                    <input data-field="fork-app-url" placeholder="apps/example.html" value="${escapeHtml(fork.action?.app_url || "")}" />
+                  </label>
+                  <label>
+                    Microservice URL
+                    <input data-field="fork-service-url" placeholder="https://service.example.com/run" value="${escapeHtml(fork.action?.url || "")}" />
+                  </label>
+                  <label>
+                    Microservice Method
+                    <select data-field="fork-service-method">
+                      <option value="GET">GET</option>
+                      <option value="POST">POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="PATCH">PATCH</option>
+                      <option value="DELETE">DELETE</option>
+                    </select>
+                  </label>
+                  <label>
+                    Headers JSON
+                    <textarea data-field="fork-service-headers" placeholder='{"Authorization": "Bearer ..."}'>${escapeHtml(JSON.stringify(fork.action?.headers || {}, null, 2))}</textarea>
+                  </label>
+                  <label>
+                    Payload Template JSON
+                    <textarea data-field="fork-service-payload" placeholder='{"intent": "{{intent}}", "stage": "{{stage}}"}'>${escapeHtml(JSON.stringify(fork.action?.payload_template || {}, null, 2))}</textarea>
+                  </label>
+                </div>
               </div>
               <div class="split">
                 <button data-action="apply">Apply Fork</button>
@@ -830,11 +1141,21 @@
           wrapper.querySelector('[data-field="next"]').value = fork.next;
           wrapper.querySelector('[data-field="fork-action-type"]').value = fork.action?.type || "none";
           wrapper.querySelector('[data-field="fork-service-method"]').value = fork.action?.method || "POST";
-          wrapper.querySelector('[data-action="apply"]').addEventListener("click", () => {
+          wrapper.querySelector('[data-action="toggle-action"]').addEventListener("click", () => {
+            const body = wrapper.querySelector(".fork-action-body");
+            const icon = wrapper.querySelector("[data-toggle-icon]");
+            const collapsed = body.classList.toggle("collapsed");
+            icon.textContent = collapsed ? "▸" : "▾";
+          });
+          wrapper.querySelector('[data-action="apply"]').addEventListener("click", async () => {
             const newForkId = slugify(wrapper.querySelector('[data-field="fork-id"]').value, forkId);
             const updatedFork = {
               next: wrapper.querySelector('[data-field="next"]').value,
             };
+            const forkDescription = wrapper.querySelector('[data-field="fork-description"]').value.trim();
+            if (forkDescription) {
+              updatedFork.description = forkDescription;
+            }
             if (wrapper.querySelector('[data-field="default"]').checked) {
               updatedFork.default = true;
             } else {
@@ -873,112 +1194,767 @@
             }
             delete stage.forks[forkId];
             stage.forks[newForkId] = updatedFork;
-            setStatus("Fork changes applied locally. Click Save YAML to persist.", "ok");
             render();
+            await persist(`Saved fork "${newForkId}" to config/workflow.yaml.`);
           });
-          wrapper.querySelector('[data-action="delete"]').addEventListener("click", () => {
+          wrapper.querySelector('[data-action="delete"]').addEventListener("click", async () => {
             if (Object.keys(stage.forks).length === 1) {
               setStatus("A stage must keep at least one fork.", "error");
               return;
             }
             delete stage.forks[forkId];
-            render();
+            await persist(`Deleted fork "${forkId}" and saved to config/workflow.yaml.`);
+          });
+          const forkHandle = wrapper.querySelector(".drag-handle");
+          forkHandle.addEventListener("dragstart", (event) => {
+            forkDragIndex = index;
+            wrapper.classList.add("dragging");
+            event.dataTransfer.effectAllowed = "move";
+          });
+          forkHandle.addEventListener("dragend", () => wrapper.classList.remove("dragging"));
+          wrapper.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            wrapper.classList.add("drop-target");
+          });
+          wrapper.addEventListener("dragleave", () => wrapper.classList.remove("drop-target"));
+          wrapper.addEventListener("drop", async (event) => {
+            event.preventDefault();
+            wrapper.classList.remove("drop-target");
+            if (forkDragIndex === null || forkDragIndex === index) {
+              return;
+            }
+            const keys = [...forkKeys];
+            const [moved] = keys.splice(forkDragIndex, 1);
+            keys.splice(index, 0, moved);
+            stage.forks = reorderObject(stage.forks, keys);
+            await persist("Fork priority updated and saved to config/workflow.yaml.");
           });
           list.appendChild(wrapper);
         });
       }
 
-      function addFork() {
+      async function addFork() {
         const stage = currentStage();
-        const forkId = `alternative_${Object.keys(stage.forks || {}).length + 1}`;
         stage.forks = stage.forks || {};
+        let counter = Object.keys(stage.forks).length + 1;
+        let forkId = `alternative_${counter}`;
+        while (stage.forks[forkId]) {
+          counter += 1;
+          forkId = `alternative_${counter}`;
+        }
         stage.forks[forkId] = {
           when_any: ["new condition"],
           next: "finalize",
         };
-        render();
+        await persist(`Added fork "${forkId}" and saved to config/workflow.yaml.`);
       }
+
+      const NODE_W = 190;
+      const NODE_H = 72;
+
+      function initNodePositions(intent, intentId, force) {
+        const stageIds = Object.keys(intent.stages);
+        const maxForks = Math.max(1, ...stageIds.map((id) => Object.keys(intent.stages[id].forks || {}).length));
+        const rowSpacing = Math.max(130, maxForks * 32);
+        const centerY = Math.max(180, rowSpacing + 80);
+        const colSpacing = 240;
+        const allNodes = ["classify", ...stageIds, "finalize"];
+        allNodes.forEach((nodeId) => {
+          const key = `${intentId}:${nodeId}`;
+          if (force || !graphPositions.has(key)) {
+            if (nodeId === "classify") {
+              graphPositions.set(key, { x: 24, y: centerY - NODE_H / 2 });
+            } else if (nodeId === "finalize") {
+              graphPositions.set(key, { x: 260 + stageIds.length * colSpacing, y: centerY - NODE_H / 2 });
+            } else {
+              const idx = stageIds.indexOf(nodeId);
+              const yOff = idx % 2 === 0 ? -rowSpacing / 2 : rowSpacing / 2;
+              graphPositions.set(key, { x: 260 + idx * colSpacing, y: centerY + yOff - NODE_H / 2 });
+            }
+          }
+        });
+        if (force || !graphViewport.has(intentId)) {
+          graphViewport.set(intentId, { tx: 0, ty: 0, scale: 1 });
+        }
+      }
+
+      function getNodePos(intentId, nodeId) {
+        return graphPositions.get(`${intentId}:${nodeId}`);
+      }
+
+      function setNodePos(intentId, nodeId, x, y) {
+        graphPositions.set(`${intentId}:${nodeId}`, { x, y });
+      }
+
+      function clearIntentPositions(intentId) {
+        [...graphPositions.keys()].filter((k) => k.startsWith(`${intentId}:`)).forEach((k) => graphPositions.delete(k));
+        graphViewport.delete(intentId);
+      }
+
+      // Layout ALL intents in a vertical stack, nodes flowing left-to-right inside each row.
+      // Positions are stored as absolute canvas coords in graphPositions.
+      // The sentinel key "__multi_layout_done__" marks that layout has been computed.
+      const MULTI_VP = "__multi__";
+      function _initMultiIntentPositions(force = false) {
+        if (!force && graphPositions.has("__multi_layout_done__")) return;
+        [...graphPositions.keys()].forEach(k => graphPositions.delete(k));
+        graphPositions.set("__multi_layout_done__", true);
+
+        const allIntents = Object.entries(workflowConfig.intents);
+        const COL_SPACING = 240, GROUP_GAP = 80;
+        let cursorY = 70;
+
+        allIntents.forEach(([intentId, intent]) => {
+          const stageIds = Object.keys(intent.stages || {});
+          const maxForks = stageIds.length > 0
+            ? Math.max(1, ...stageIds.map(id => Object.keys(intent.stages[id].forks || {}).length))
+            : 1;
+          const rowSpacing = Math.max(100, maxForks * 26);
+          // center of this group's row; classify/finalize sit at centerY, stages alternate ±rowSpacing/2
+          const centerY = cursorY + rowSpacing / 2 + NODE_H / 2;
+          const groupH   = rowSpacing + NODE_H + 40;   // total pixel height of this group band
+
+          ["classify", ...stageIds, "finalize"].forEach((nodeId) => {
+            let x, y;
+            if (nodeId === "classify") {
+              x = 60; y = centerY;
+            } else if (nodeId === "finalize") {
+              x = 60 + 260 + stageIds.length * COL_SPACING; y = centerY;
+            } else {
+              const idx = stageIds.indexOf(nodeId);
+              x = 60 + 260 + idx * COL_SPACING;
+              y = centerY + (idx % 2 === 0 ? -rowSpacing / 2 : rowSpacing / 2);
+            }
+            graphPositions.set(`${intentId}:${nodeId}`, { x, y });
+          });
+
+          cursorY += groupH + GROUP_GAP;
+        });
+
+        if (!graphViewport.has(MULTI_VP)) {
+          graphViewport.set(MULTI_VP, { tx: 20, ty: 20, scale: 0.82 });
+        }
+      }
+
+      // ── Canvas drag-to-connect helpers ──────────────────────────────────────
+
+      function getSvgCoords(clientX, clientY) {
+        const svgEl = $("graph").querySelector("svg");
+        if (!svgEl) return { x: 0, y: 0 };
+        const vp = graphViewport.get(MULTI_VP) || { tx: 0, ty: 0, scale: 1 };
+        const rect = svgEl.getBoundingClientRect();
+        return {
+          x: (clientX - rect.left - vp.tx) / vp.scale,
+          y: (clientY - rect.top - vp.ty) / vp.scale,
+        };
+      }
+
+      // Search ALL intents' nodes — returns {nodeId, intentId} or null
+      function findNodeAtSvgPos(svgX, svgY) {
+        for (const [intentId, intent] of Object.entries(workflowConfig.intents)) {
+          for (const nodeId of [...Object.keys(intent.stages || {}), "finalize", "classify"]) {
+            const p = getNodePos(intentId, nodeId);
+            if (p && svgX >= p.x && svgX <= p.x + NODE_W && svgY >= p.y && svgY <= p.y + NODE_H) {
+              return { nodeId, intentId };
+            }
+          }
+        }
+        return null;
+      }
+
+      // fromIntentId is now explicit — all nodes are visible so no ghost nodes needed
+      function startConnectDrag(fromStageId, fromIntentId, edgeLayer, nodeLayer, svg, clientX, clientY, mode = "out") {
+        const NS = "http://www.w3.org/2000/svg";
+        const line = document.createElementNS(NS, "path");
+        line.setAttribute("fill", "none");
+        line.setAttribute("stroke", mode === "in" ? "#a78bfa" : "#60a5fa");
+        line.setAttribute("stroke-width", "2");
+        line.setAttribute("stroke-dasharray", "8 4");
+        line.setAttribute("pointer-events", "none");
+        edgeLayer.appendChild(line);
+
+        connectState = { fromStageId, fromIntentId, line, ghostKeys: [], edgeLayer, nodeLayer, svg, mode };
+        svg.style.cursor = "crosshair";
+        updateConnectLine(clientX, clientY);
+
+        function onMove(e) { if (connectState) updateConnectLine(e.clientX, e.clientY); }
+        async function onUp(e) {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          const { x, y } = getSvgCoords(e.clientX, e.clientY);
+          await endConnectDrag(findNodeAtSvgPos(x, y));
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      }
+
+      function updateConnectLine(clientX, clientY) {
+        if (!connectState) return;
+        const { fromStageId, fromIntentId, line, nodeLayer, mode } = connectState;
+        const fromPos = getNodePos(fromIntentId, fromStageId);
+        if (!fromPos || !line) return;
+        const { x: svgX, y: svgY } = getSvgCoords(clientX, clientY);
+        const x1 = mode === "in" ? fromPos.x + 12 : fromPos.x + NODE_W - 12;
+        const y1 = fromPos.y + NODE_H / 2;
+        const mx = (x1 + svgX) / 2;
+        line.setAttribute("d", `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${svgY}, ${svgX} ${svgY}`);
+
+        // Highlight hovered node across all intents
+        for (const [intentId, intent] of Object.entries(workflowConfig.intents)) {
+          for (const id of [...Object.keys(intent.stages || {}), "finalize"]) {
+            const el = nodeLayer.querySelector(`[data-node-id="${id}"][data-intent-id="${intentId}"] rect`);
+            if (!el) continue;
+            const p = getNodePos(intentId, id);
+            const over = p && svgX >= p.x && svgX <= p.x + NODE_W && svgY >= p.y && svgY <= p.y + NODE_H;
+            el.setAttribute("stroke", over ? "#22c55e" : "");
+            el.setAttribute("stroke-width", over ? "2.5" : "");
+          }
+        }
+      }
+
+      async function endConnectDrag(target) {
+        if (!connectState) return;
+        const { fromStageId, fromIntentId, line, ghostKeys, nodeLayer, svg, mode } = connectState;
+        line.remove();
+        ghostKeys.forEach(k => nodeLayer.querySelector(`[data-ghost-key="${k}"]`)?.remove());
+        svg.style.cursor = "default";
+        connectState = null;
+
+        if (!target) { render(); return; }
+        const { nodeId: toNodeId, intentId: toIntentId } = target;
+
+        function nextForkId(forksObj) {
+          let n = Object.keys(forksObj).length + 1, id = `link_${n}`;
+          while (forksObj[id]) { n++; id = `link_${n}`; }
+          return id;
+        }
+
+        if (mode === "out") {
+          // Right handle: fork in fromIntentId:fromStageId → toIntentId:toNodeId
+          if (toNodeId === fromStageId && toIntentId === fromIntentId) { render(); return; }
+          const stage = workflowConfig.intents[fromIntentId]?.stages?.[fromStageId];
+          if (!stage) { render(); return; }
+          stage.forks = stage.forks || {};
+          const forkId = nextForkId(stage.forks);
+          const nextVal = fromIntentId === toIntentId ? toNodeId : `${toIntentId}:${toNodeId}`;
+          stage.forks[forkId] = { when_any: ["new condition"], next: nextVal };
+          selectedIntentId = fromIntentId; selectedStageId = fromStageId;
+          await persist(`Linked "${fromStageId}" → "${nextVal}" via fork "${forkId}".`);
+        } else {
+          // Left handle: fork in toIntentId:toNodeId → fromIntentId:fromStageId
+          const targetStage = workflowConfig.intents[toIntentId]?.stages?.[toNodeId];
+          if (!targetStage) { render(); return; }
+          targetStage.forks = targetStage.forks || {};
+          const forkId = nextForkId(targetStage.forks);
+          const nextVal = toIntentId === fromIntentId ? fromStageId : `${fromIntentId}:${fromStageId}`;
+          targetStage.forks[forkId] = { when_any: ["new condition"], next: nextVal };
+          selectedIntentId = fromIntentId; selectedStageId = fromStageId;
+          await persist(`Linked "${toNodeId}" → "${nextVal}" via fork "${forkId}".`);
+        }
+      }
+
+      // ── End drag-to-connect helpers ─────────────────────────────────────────
 
       function renderGraph() {
-        const intent = currentIntent();
-        const stageIds = Object.keys(intent.stages);
-        const width = Math.max(820, stageIds.length * 240);
-        const height = 420;
-        const centerY = 160;
-        const nodeWidth = 190;
-        const nodeHeight = 72;
-        const positions = new Map();
-        positions.set("classify", { x: 24, y: centerY });
-        stageIds.forEach((stageId, index) => {
-          positions.set(stageId, { x: 260 + index * 230, y: index % 2 === 0 ? 76 : 238 });
+        const allIntents = Object.entries(workflowConfig.intents);
+        if (allIntents.length === 0) return;
+        _initMultiIntentPositions();  // layout all intents side-by-side (idempotent)
+
+        const vp = graphViewport.get(MULTI_VP) || { tx: 0, ty: 0, scale: 0.78 };
+        graphViewport.set(MULTI_VP, vp);
+        const container = $("graph");
+        container.innerHTML = "";
+
+        // Canvas size: span all intent positions
+        let maxX = 0, maxY = 0;
+        graphPositions.forEach((v, k) => {
+          if (k === "__multi_layout_done__" || typeof v !== "object") return;
+          maxX = Math.max(maxX, v.x + NODE_W + 80);
+          maxY = Math.max(maxY, v.y + NODE_H + 80);
         });
-        positions.set("finalize", { x: 260 + stageIds.length * 230, y: centerY });
+        const svgW = Math.max(1400, maxX);
+        const svgH = Math.max(500, maxY);
 
-        const edgeMarkup = [];
-        edgeMarkup.push(edgeSvg(positions.get("classify"), positions.get(intent.start_stage), "start"));
-        stageIds.forEach((stageId) => {
-          const stage = intent.stages[stageId];
-          Object.entries(stage.forks || {}).forEach(([forkId, fork]) => {
-            const forkLabel = fork.action ? `${forkId} [${fork.action.type}]` : forkId;
-            edgeMarkup.push(edgeSvg(positions.get(stageId), positions.get(fork.next), forkLabel));
-          });
-        });
+        const NS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(NS, "svg");
+        svg.setAttribute("width", svgW);
+        svg.setAttribute("height", svgH);
+        svg.setAttribute("overflow", "visible"); // allow handles outside viewport bounds
+        svg.style.display = "block";
+        svg.style.cursor = "default";
 
-        const nodeMarkup = [
-          nodeSvg("classify", "Intent classifier", `keywords: ${(intent.keywords || []).length}`, positions.get("classify"), ""),
-          ...stageIds.map((stageId) => {
-            const stage = intent.stages[stageId];
-            const classes = [
-              stageId === selectedStageId ? "selected" : "",
-              stage.action.type === "html_app" ? "html" : "",
-            ].join(" ");
-            const startLabel = stageId === intent.start_stage ? "start stage" : stage.action.type;
-            return nodeSvg(stageId, stage.title, startLabel, positions.get(stageId), classes);
-          }),
-          nodeSvg("finalize", "Finalize", "return response", positions.get("finalize"), ""),
-        ];
+        // Arrow markers — standard (blue) and cross-intent (orange)
+        const defs = document.createElementNS(NS, "defs");
+        defs.innerHTML = `
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#60a5fa"/>
+          </marker>
+          <marker id="arr-x" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#fb923c"/>
+          </marker>
+          <marker id="arr-in" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#a78bfa"/>
+          </marker>`;
+        svg.appendChild(defs);
 
-        $("graph").innerHTML = `
-          <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-            ${edgeMarkup.join("")}
-            ${nodeMarkup.join("")}
-          </svg>
-        `;
-        stageIds.forEach((stageId) => {
-          const node = document.querySelector(`[data-stage-id="${stageId}"]`);
-          node?.addEventListener("click", () => {
-            selectedStageId = stageId;
-            render();
-          });
-        });
-      }
+        // Viewport group (pan + zoom)
+        const vpGroup = document.createElementNS(NS, "g");
+        vpGroup.id = "vp-group";
+        vpGroup.setAttribute("transform", `translate(${vp.tx},${vp.ty}) scale(${vp.scale})`);
+        svg.appendChild(vpGroup);
 
-      function edgeSvg(from, to, label) {
-        if (!from || !to) {
-          return "";
+        // bgLayer (intent group backgrounds) sits behind edges and nodes
+        const bgLayer = document.createElementNS(NS, "g");
+        vpGroup.appendChild(bgLayer);
+        const edgeLayer = document.createElementNS(NS, "g");
+        vpGroup.appendChild(edgeLayer);
+        const nodeLayer = document.createElementNS(NS, "g");
+        vpGroup.appendChild(nodeLayer);
+
+        // ── Edge helpers ─────────────────────────────────────────────────────
+        // Compute bent Bezier path + key coordinates.
+        // bx/by are user-dragged offsets that shift the two control points.
+        function bentPath(x1, y1, x2, y2, bx, by) {
+          const cpx = (x1 + x2) / 2 + bx;
+          const hx  = cpx, hy = (y1 + y2) / 2 + by;          // bend-handle centre
+          return {
+            d: `M ${x1} ${y1} C ${cpx} ${y1 + by}, ${cpx} ${y2 + by}, ${x2} ${y2}`,
+            hx, hy, x2, y2, lx: hx - 32, ly: hy - 8
+          };
         }
-        const x1 = from.x + 190;
-        const y1 = from.y + 36;
-        const x2 = to.x;
-        const y2 = to.y + 36;
-        const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2;
-        return `
-          <path d="M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}" fill="none" stroke="#64748b" stroke-width="1.5" />
-          <circle cx="${x2}" cy="${y2}" r="3.5" fill="#60a5fa" />
-          <text x="${midX - 32}" y="${midY - 6}" fill="#9ca3af" font-size="11">${escapeHtml(label)}</text>
-        `;
-      }
 
-      function nodeSvg(id, title, subtitle, position, classes) {
-        const dataAttr = id === "classify" || id === "finalize" ? "" : `data-stage-id="${id}"`;
-        return `
-          <g class="node ${classes}" ${dataAttr} transform="translate(${position.x}, ${position.y})">
-            <rect width="190" height="72" rx="10"></rect>
-            <text x="12" y="27" fill="#e5e7eb" font-size="13" font-weight="700">${escapeHtml(title).slice(0, 28)}</text>
-            <text x="12" y="50" fill="#9ca3af" font-size="11">${escapeHtml(subtitle).slice(0, 30)}</text>
-          </g>
-        `;
+        function drawEdge(fromIntentId, fromNodeId, toIntentId, toNodeId, label, edgeId, crossIntent) {
+          const fPos = getNodePos(fromIntentId, fromNodeId);
+          const tPos = getNodePos(toIntentId, toNodeId);
+          if (!fPos || !tPos) return;
+          const x1 = fPos.x + NODE_W, y1 = fPos.y + NODE_H / 2;
+          const x2 = tPos.x,          y2 = tPos.y + NODE_H / 2;
+          const { bx = 0, by = 0 } = edgeBends.get(edgeId) || {};
+          const { d, hx, hy, lx, ly } = bentPath(x1, y1, x2, y2, bx, by);
+
+          const g = document.createElementNS(NS, "g");
+          g.dataset.edgeFrom = `${fromIntentId}:${fromNodeId}`;
+          g.dataset.edgeTo   = `${toIntentId}:${toNodeId}`;
+          g.dataset.edgeId   = edgeId;
+
+          const stroke = crossIntent ? "#fb923c" : "#64748b";
+          const dotClr = crossIntent ? "#fb923c" : "#60a5fa";
+          const txtClr = crossIntent ? "#fb923c" : "#9ca3af";
+          const bhClr  = crossIntent ? "#fbbf24" : "#38bdf8";   // bend-handle accent
+
+          const path = document.createElementNS(NS, "path");
+          path.setAttribute("d", d); path.setAttribute("fill", "none");
+          path.setAttribute("stroke", stroke);
+          path.setAttribute("stroke-width", crossIntent ? "2" : "1.5");
+          path.setAttribute("marker-end", crossIntent ? "url(#arr-x)" : "url(#arr)");
+          if (crossIntent) path.setAttribute("stroke-dasharray", "6 3");
+
+          const dot = document.createElementNS(NS, "circle");
+          dot.dataset.edgeDot = "1";
+          dot.setAttribute("cx", x2); dot.setAttribute("cy", y2);
+          dot.setAttribute("r", crossIntent ? "5" : "3.5"); dot.setAttribute("fill", dotClr);
+          dot.setAttribute("pointer-events", "none");
+
+          const txt = document.createElementNS(NS, "text");
+          txt.setAttribute("x", lx); txt.setAttribute("y", ly);
+          txt.setAttribute("fill", txtClr); txt.setAttribute("font-size", "11");
+          txt.setAttribute("font-weight", crossIntent ? "700" : "400");
+          txt.setAttribute("pointer-events", "none");
+          txt.textContent = label.length > 28 ? label.slice(0, 27) + "…" : label;
+
+          // Draggable bend handle — diamond shape for affordance
+          const bh = document.createElementNS(NS, "circle");
+          bh.dataset.bendHandle = "1";
+          bh.setAttribute("cx", hx); bh.setAttribute("cy", hy);
+          bh.setAttribute("r", "6"); bh.setAttribute("fill", bhClr);
+          bh.setAttribute("fill-opacity", "0.5"); bh.setAttribute("stroke", bhClr);
+          bh.setAttribute("stroke-width", "1.5"); bh.style.cursor = "move";
+
+          bh.addEventListener("mousedown", (e) => {
+            e.stopPropagation(); e.preventDefault();
+            const startX = e.clientX, startY = e.clientY;
+            const origBend = { ...(edgeBends.get(edgeId) || { bx: 0, by: 0 }) };
+            function onBendMove(me) {
+              const scale = (graphViewport.get(MULTI_VP) || { scale: 1 }).scale;
+              const nbx = origBend.bx + (me.clientX - startX) / scale;
+              const nby = origBend.by + (me.clientY - startY) / scale;
+              edgeBends.set(edgeId, { bx: nbx, by: nby });
+              // Live-update path, dot, handle, label
+              const fP = graphPositions.get(g.dataset.edgeFrom);
+              const tP = graphPositions.get(g.dataset.edgeTo);
+              if (!fP || !tP) return;
+              const ex1 = fP.x + NODE_W, ey1 = fP.y + NODE_H / 2;
+              const ex2 = tP.x,          ey2 = tP.y + NODE_H / 2;
+              const { d: nd, hx: nhx, hy: nhy, lx: nlx, ly: nly } = bentPath(ex1, ey1, ex2, ey2, nbx, nby);
+              path.setAttribute("d", nd);
+              bh.setAttribute("cx", nhx); bh.setAttribute("cy", nhy);
+              txt.setAttribute("x", nlx); txt.setAttribute("y", nly);
+            }
+            function onBendUp() {
+              window.removeEventListener("mousemove", onBendMove);
+              window.removeEventListener("mouseup", onBendUp);
+            }
+            window.addEventListener("mousemove", onBendMove);
+            window.addEventListener("mouseup", onBendUp);
+          });
+
+          // Show handle brighter on hover
+          bh.addEventListener("mouseenter", () => bh.setAttribute("fill-opacity", "0.9"));
+          bh.addEventListener("mouseleave", () => bh.setAttribute("fill-opacity", "0.5"));
+
+          g.appendChild(path); g.appendChild(dot); g.appendChild(bh); g.appendChild(txt);
+          edgeLayer.appendChild(g);
+        }
+
+        function updateEdgesFor(intentId, nodeId) {
+          const key = `${intentId}:${nodeId}`;
+          edgeLayer.querySelectorAll(`[data-edge-from="${key}"], [data-edge-to="${key}"]`).forEach((eg) => {
+            const fPos = graphPositions.get(eg.dataset.edgeFrom);
+            const tPos = graphPositions.get(eg.dataset.edgeTo);
+            if (!fPos || !tPos) return;
+            const x1 = fPos.x + NODE_W, y1 = fPos.y + NODE_H / 2;
+            const x2 = tPos.x,          y2 = tPos.y + NODE_H / 2;
+            const { bx = 0, by = 0 } = edgeBends.get(eg.dataset.edgeId) || {};
+            const { d, hx, hy, lx, ly } = bentPath(x1, y1, x2, y2, bx, by);
+            eg.querySelector("path").setAttribute("d", d);
+            const c = eg.querySelector("[data-edge-dot]");
+            if (c) { c.setAttribute("cx", x2); c.setAttribute("cy", y2); }
+            const bh2 = eg.querySelector("[data-bend-handle]");
+            if (bh2) { bh2.setAttribute("cx", hx); bh2.setAttribute("cy", hy); }
+            const t = eg.querySelector("text");
+            if (t) { t.setAttribute("x", lx); t.setAttribute("y", ly); }
+          });
+        }
+
+        function expandSvg(x, y) {
+          if (x + 60 > parseInt(svg.getAttribute("width")))  svg.setAttribute("width",  x + 60);
+          if (y + 60 > parseInt(svg.getAttribute("height"))) svg.setAttribute("height", y + 60);
+        }
+
+        // intentId is now explicit — multi-intent canvas
+        function drawNode(nodeId, title, subtitle, classes, isStage, intentId) {
+          const pos = getNodePos(intentId, nodeId);
+          const g = document.createElementNS(NS, "g");
+          g.setAttribute("class", `node ${classes}`);
+          g.setAttribute("transform", `translate(${pos.x},${pos.y})`);
+          g.dataset.nodeId = nodeId;
+          g.dataset.intentId = intentId;
+          if (isStage) g.dataset.stageId = nodeId;
+          g.style.cursor = "grab";
+
+          // Background rect — styled by CSS ".node rect"
+          const rect = document.createElementNS(NS, "rect");
+          rect.setAttribute("width", NODE_W);
+          rect.setAttribute("height", NODE_H);
+          rect.setAttribute("rx", "10");
+          g.appendChild(rect);
+
+          // For stage nodes shift text right to leave room for the left handle badge
+          const textX = isStage ? "30" : "12";
+          const t1 = document.createElementNS(NS, "text");
+          t1.setAttribute("x", textX); t1.setAttribute("y", "27");
+          t1.setAttribute("fill", "#e5e7eb"); t1.setAttribute("font-size", "13"); t1.setAttribute("font-weight", "700");
+          t1.textContent = title.slice(0, 26);
+          g.appendChild(t1);
+
+          const t2 = document.createElementNS(NS, "text");
+          t2.setAttribute("x", textX); t2.setAttribute("y", "50");
+          t2.setAttribute("fill", "#9ca3af"); t2.setAttribute("font-size", "11");
+          t2.textContent = subtitle.slice(0, 28);
+          g.appendChild(t2);
+
+          if (isStage) {
+            // RIGHT handle — blue badge, outbound "add outgoing fork"
+            const hg = document.createElementNS(NS, "g");
+            hg.setAttribute("transform", `translate(${NODE_W - 23},${NODE_H / 2 - 11})`);
+            hg.style.cursor = "crosshair";
+            const hc = document.createElementNS(NS, "circle");
+            hc.setAttribute("cx", "11"); hc.setAttribute("cy", "11"); hc.setAttribute("r", "11");
+            hc.setAttribute("fill", "#1e3a8a"); hc.setAttribute("stroke", "#93c5fd"); hc.setAttribute("stroke-width", "2");
+            const ht = document.createElementNS(NS, "text");
+            ht.setAttribute("x", "5"); ht.setAttribute("y", "16");
+            ht.setAttribute("fill", "#fff"); ht.setAttribute("font-size", "15"); ht.setAttribute("font-weight", "700");
+            ht.setAttribute("pointer-events", "none");
+            ht.textContent = "+";
+            hg.appendChild(hc); hg.appendChild(ht);
+            g.appendChild(hg);
+            hg.addEventListener("mousedown", (e) => {
+              e.stopPropagation(); e.preventDefault();
+              startConnectDrag(nodeId, intentId, edgeLayer, nodeLayer, svg, e.clientX, e.clientY, "out");
+            });
+
+            // LEFT handle — purple, inbound
+            const lg = document.createElementNS(NS, "g");
+            lg.setAttribute("transform", `translate(1,${NODE_H / 2 - 11})`); lg.style.cursor = "crosshair";
+            const lc = document.createElementNS(NS, "circle");
+            lc.setAttribute("cx", "11"); lc.setAttribute("cy", "11"); lc.setAttribute("r", "11");
+            lc.setAttribute("fill", "#4c1d95"); lc.setAttribute("stroke", "#c4b5fd"); lc.setAttribute("stroke-width", "2");
+            const lt = document.createElementNS(NS, "text");
+            lt.setAttribute("x", "5"); lt.setAttribute("y", "16");
+            lt.setAttribute("fill", "#fff"); lt.setAttribute("font-size", "15"); lt.setAttribute("font-weight", "700");
+            lt.setAttribute("pointer-events", "none"); lt.textContent = "+";
+            lg.appendChild(lc); lg.appendChild(lt); g.appendChild(lg);
+            lg.addEventListener("mousedown", (e) => {
+              e.stopPropagation(); e.preventDefault();
+              startConnectDrag(nodeId, intentId, edgeLayer, nodeLayer, svg, e.clientX, e.clientY, "in");
+            });
+          }
+
+          nodeLayer.appendChild(g);
+
+          // Node drag — handles are children of g so they move automatically
+          let dragStart = null, origPos = null;
+          g.addEventListener("mousedown", (e) => {
+            if (connectState) return;
+            e.stopPropagation();
+            dragStart = { x: e.clientX, y: e.clientY };
+            origPos = { ...getNodePos(intentId, nodeId) };
+            g.style.cursor = "grabbing";
+
+            function onMove(me) {
+              const scale = (graphViewport.get(MULTI_VP) || { scale: 1 }).scale;
+              const nx = Math.max(0, origPos.x + (me.clientX - dragStart.x) / scale);
+              const ny = Math.max(0, origPos.y + (me.clientY - dragStart.y) / scale);
+              setNodePos(intentId, nodeId, nx, ny);
+              g.setAttribute("transform", `translate(${nx},${ny})`);
+              updateEdgesFor(intentId, nodeId);
+              expandSvg(nx + NODE_W, ny + NODE_H);
+            }
+
+            function onUp(ue) {
+              const dist = Math.hypot(ue.clientX - dragStart.x, ue.clientY - dragStart.y);
+              g.style.cursor = "grab";
+              window.removeEventListener("mousemove", onMove);
+              window.removeEventListener("mouseup", onUp);
+              if (dist < 5 && isStage) {
+                selectedIntentId = intentId;
+                selectedStageId = nodeId;
+                render();
+              }
+              dragStart = null; origPos = null;
+            }
+
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", onUp);
+          });
+        }
+
+        // ── Intent group backgrounds + whole-group drag + resize grip ────────
+        // Recompute bgRect/label/grip from current node coords, respecting groupMinSize.
+        function refreshGroupBg(intentId2, nodeIds2, bgRect2, lbl2, grip2) {
+          const ps = nodeIds2.map(id => getNodePos(intentId2, id)).filter(Boolean);
+          if (!ps.length) return;
+          const gMinX = Math.min(...ps.map(p => p.x)) - 32;
+          const gMinY = Math.min(...ps.map(p => p.y)) - 52;
+          const autoW  = Math.max(...ps.map(p => p.x + NODE_W)) + 32 - gMinX;
+          const autoH  = Math.max(...ps.map(p => p.y + NODE_H)) + 24 - gMinY;
+          const { w: minW = 0, h: minH = 0 } = groupMinSize.get(intentId2) || {};
+          const gW = Math.max(autoW, minW), gH = Math.max(autoH, minH);
+          bgRect2.setAttribute("x", gMinX); bgRect2.setAttribute("y", gMinY);
+          bgRect2.setAttribute("width", gW); bgRect2.setAttribute("height", gH);
+          lbl2.setAttribute("x", gMinX + 12); lbl2.setAttribute("y", gMinY + 34);
+          if (grip2) {
+            grip2.setAttribute("x", gMinX + gW - 18);
+            grip2.setAttribute("y", gMinY + gH - 18);
+          }
+        }
+
+        allIntents.forEach(([intentId, intent]) => {
+          const stageIds = Object.keys(intent.stages || {});
+          const nodeIds  = ["classify", ...stageIds, "finalize"];
+          const positions = nodeIds.map(id => getNodePos(intentId, id)).filter(Boolean);
+          if (positions.length === 0) return;
+          const minX  = Math.min(...positions.map(p => p.x)) - 32;
+          const minY  = Math.min(...positions.map(p => p.y)) - 52;
+          const autoW  = Math.max(...positions.map(p => p.x + NODE_W)) + 32 - minX;
+          const autoH  = Math.max(...positions.map(p => p.y + NODE_H)) + 24 - minY;
+          const { w: minW = 0, h: minH = 0 } = groupMinSize.get(intentId) || {};
+          const bgW = Math.max(autoW, minW), bgH = Math.max(autoH, minH);
+          const isSel = intentId === selectedIntentId;
+
+          const bgRect = document.createElementNS(NS, "rect");
+          bgRect.setAttribute("x", minX);  bgRect.setAttribute("y", minY);
+          bgRect.setAttribute("width", bgW); bgRect.setAttribute("height", bgH);
+          bgRect.setAttribute("rx", "16");
+          bgRect.setAttribute("fill",   isSel ? "#0d1626" : "#080e1a");
+          bgRect.setAttribute("stroke", isSel ? "#3b82f6" : "#1e2d42");
+          bgRect.setAttribute("stroke-width", isSel ? "2" : "1");
+          bgRect.style.cursor = "grab";
+          bgLayer.appendChild(bgRect);
+
+          const lbl = document.createElementNS(NS, "text");
+          lbl.setAttribute("x", minX + 12); lbl.setAttribute("y", minY + 34);
+          lbl.setAttribute("fill", isSel ? "#60a5fa" : "#475569");
+          lbl.setAttribute("font-size", "13"); lbl.setAttribute("font-weight", "700");
+          lbl.setAttribute("pointer-events", "none");
+          lbl.textContent = intent.label || intentId;
+          bgLayer.appendChild(lbl);
+
+          // ── Resize grip — bottom-right corner of the group ──────────────
+          const grip = document.createElementNS(NS, "rect");
+          grip.setAttribute("x", minX + bgW - 18); grip.setAttribute("y", minY + bgH - 18);
+          grip.setAttribute("width", "18"); grip.setAttribute("height", "18");
+          grip.setAttribute("rx", "4");
+          grip.setAttribute("fill", isSel ? "#3b82f6" : "#334155");
+          grip.setAttribute("fill-opacity", "0.75");
+          grip.style.cursor = "nwse-resize";
+          bgLayer.appendChild(grip);
+          // diagonal lines hint inside grip
+          const gLine1 = document.createElementNS(NS, "line");
+          gLine1.setAttribute("stroke", "#e2e8f0"); gLine1.setAttribute("stroke-width", "1.5");
+          gLine1.setAttribute("pointer-events", "none");
+          const gLine2 = document.createElementNS(NS, "line");
+          gLine2.setAttribute("stroke", "#e2e8f0"); gLine2.setAttribute("stroke-width", "1.5");
+          gLine2.setAttribute("pointer-events", "none");
+
+          function positionGripLines() {
+            const gx = parseFloat(grip.getAttribute("x")),
+                  gy = parseFloat(grip.getAttribute("y"));
+            gLine1.setAttribute("x1", gx + 4);  gLine1.setAttribute("y1", gy + 14);
+            gLine1.setAttribute("x2", gx + 14); gLine1.setAttribute("y2", gy + 4);
+            gLine2.setAttribute("x1", gx + 8);  gLine2.setAttribute("y1", gy + 14);
+            gLine2.setAttribute("x2", gx + 14); gLine2.setAttribute("y2", gy + 8);
+          }
+          positionGripLines();
+          bgLayer.appendChild(gLine1); bgLayer.appendChild(gLine2);
+
+          grip.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            const startX = e.clientX, startY = e.clientY;
+            const origW = parseFloat(bgRect.getAttribute("width"));
+            const origH = parseFloat(bgRect.getAttribute("height"));
+            grip.style.cursor = "nwse-resize";
+            function onResizeMove(me) {
+              const scale = (graphViewport.get(MULTI_VP) || { scale: 1 }).scale;
+              const nw = Math.max(autoW, origW + (me.clientX - startX) / scale);
+              const nh = Math.max(autoH, origH + (me.clientY - startY) / scale);
+              groupMinSize.set(intentId, { w: nw, h: nh });
+              bgRect.setAttribute("width", nw); bgRect.setAttribute("height", nh);
+              grip.setAttribute("x", minX + nw - 18); grip.setAttribute("y", minY + nh - 18);
+              positionGripLines();
+            }
+            function onResizeUp() {
+              window.removeEventListener("mousemove", onResizeMove);
+              window.removeEventListener("mouseup", onResizeUp);
+            }
+            window.addEventListener("mousemove", onResizeMove);
+            window.addEventListener("mouseup", onResizeUp);
+          });
+
+          // ── Group drag — move ALL nodes together ─────────────────────────
+          let gDragStart = null, gOrigPos = null;
+          bgRect.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            gDragStart = { x: e.clientX, y: e.clientY };
+            gOrigPos = {};
+            nodeIds.forEach(id => { const p = getNodePos(intentId, id); if (p) gOrigPos[id] = { ...p }; });
+            bgRect.style.cursor = "grabbing";
+
+            function onGroupMove(me) {
+              const scale = (graphViewport.get(MULTI_VP) || { scale: 1 }).scale;
+              const dx = (me.clientX - gDragStart.x) / scale;
+              const dy = (me.clientY - gDragStart.y) / scale;
+              nodeIds.forEach(id => {
+                const orig = gOrigPos[id]; if (!orig) return;
+                const nx = orig.x + dx, ny = orig.y + dy;
+                setNodePos(intentId, id, nx, ny);
+                const el = nodeLayer.querySelector(`[data-node-id="${id}"][data-intent-id="${intentId}"]`);
+                if (el) el.setAttribute("transform", `translate(${nx},${ny})`);
+                updateEdgesFor(intentId, id);
+                expandSvg(nx + NODE_W, ny + NODE_H);
+              });
+              refreshGroupBg(intentId, nodeIds, bgRect, lbl, grip);
+              positionGripLines();
+            }
+
+            function onGroupUp(ue) {
+              window.removeEventListener("mousemove", onGroupMove);
+              window.removeEventListener("mouseup", onGroupUp);
+              bgRect.style.cursor = "grab";
+              const dist = Math.hypot(ue.clientX - gDragStart.x, ue.clientY - gDragStart.y);
+              gDragStart = null; gOrigPos = null;
+              if (dist < 5) { selectedIntentId = intentId; selectedStageId = null; render(); }
+            }
+            window.addEventListener("mousemove", onGroupMove);
+            window.addEventListener("mouseup", onGroupUp);
+          });
+        });
+
+        // ── All edges (same-intent solid, cross-intent dashed orange) ─────────
+        allIntents.forEach(([intentId, intent]) => {
+          const stageIds = Object.keys(intent.stages || {});
+          if (intent.start_stage) {
+            drawEdge(intentId, "classify", intentId, intent.start_stage, "start", `e-${intentId}-cls`, false);
+          }
+          stageIds.forEach((stageId) => {
+            Object.entries(intent.stages[stageId].forks || {}).forEach(([forkId, fork]) => {
+              if (typeof fork.next !== "string") return;
+              const isCross = fork.next.includes(":");
+              let toIntentId = intentId, toStageId = fork.next;
+              let label = fork.action ? `${forkId} [${fork.action.type}]` : forkId;
+              if (isCross) {
+                [toIntentId, toStageId] = fork.next.split(":", 2);
+                const toLbl = workflowConfig.intents[toIntentId]?.label || toIntentId;
+                label = `→ ${toLbl}: ${toStageId}`;
+              }
+              drawEdge(intentId, stageId, toIntentId, toStageId, label,
+                       `e-${intentId}-${stageId}-${forkId}`, isCross);
+            });
+          });
+        });
+
+        // ── All nodes ──────────────────────────────────────────────────────────
+        allIntents.forEach(([intentId, intent]) => {
+          const stageIds = Object.keys(intent.stages || {});
+          drawNode("classify", "Classifier", `${(intent.keywords || []).length} keywords`, "", false, intentId);
+          stageIds.forEach((stageId) => {
+            const stage = intent.stages[stageId];
+            const cls = [
+              stageId === selectedStageId && intentId === selectedIntentId ? "selected" : "",
+              stage.action.type === "html_app" ? "html" : ""
+            ].join(" ");
+            const sub = stageId === intent.start_stage ? "start stage" : stage.action.type;
+            drawNode(stageId, stage.title, sub, cls, true, intentId);
+          });
+          drawNode("finalize", "Finalize", "return response", "", false, intentId);
+        });
+
+        // ── Pan ────────────────────────────────────────────────────────────────
+        svg.addEventListener("mousedown", (e) => {
+          if (e.target !== svg && e.target !== vpGroup && !e.target.closest?.("[data-intent-bg]")) return;
+          const startX = e.clientX, startY = e.clientY;
+          const startVp = { ...graphViewport.get(MULTI_VP) };
+          svg.style.cursor = "grabbing";
+          function onPanMove(me) {
+            const v = graphViewport.get(MULTI_VP);
+            v.tx = startVp.tx + (me.clientX - startX);
+            v.ty = startVp.ty + (me.clientY - startY);
+            vpGroup.setAttribute("transform", `translate(${v.tx},${v.ty}) scale(${v.scale})`);
+          }
+          function onPanUp() {
+            svg.style.cursor = "default";
+            window.removeEventListener("mousemove", onPanMove);
+            window.removeEventListener("mouseup", onPanUp);
+          }
+          window.addEventListener("mousemove", onPanMove);
+          window.addEventListener("mouseup", onPanUp);
+        });
+
+        // ── Zoom ───────────────────────────────────────────────────────────────
+        svg.addEventListener("wheel", (e) => {
+          e.preventDefault();
+          const v = graphViewport.get(MULTI_VP);
+          const factor = e.deltaY < 0 ? 1.1 : 0.91;
+          const r = svg.getBoundingClientRect();
+          const mx = e.clientX - r.left, my = e.clientY - r.top;
+          const newScale = Math.min(3, Math.max(0.2, v.scale * factor));
+          v.tx = mx - (mx - v.tx) * (newScale / v.scale);
+          v.ty = my - (my - v.ty) * (newScale / v.scale);
+          v.scale = newScale;
+          vpGroup.setAttribute("transform", `translate(${v.tx},${v.ty}) scale(${v.scale})`);
+        }, { passive: false });
+
+        container.appendChild(svg);
       }
 
       function escapeHtml(value) {
@@ -989,9 +1965,22 @@
           .replaceAll('"', "&quot;");
       }
 
+      $("resetLayoutBtn").addEventListener("click", () => {
+        graphPositions.clear(); // force full re-layout of all intents
+        graphViewport.delete(MULTI_VP);
+        renderGraph();
+      });
+
+      $("exportPngBtn").addEventListener("click", () => {
+        window.open("/workflow/workspace.png?t=" + Date.now(), "_blank");
+        setStatus("Light-theme workspace PNG generated at designer/workflow-workspace.png", "ok");
+      });
+
       $("saveBtn").addEventListener("click", saveWorkflow);
       $("validateBtn").addEventListener("click", validateWorkflow);
       $("addIntentBtn").addEventListener("click", addIntent);
+      $("createIntentBtn").addEventListener("click", createIntent);
+      $("deleteIntentBtn").addEventListener("click", deleteIntent);
       $("applyIntentBtn").addEventListener("click", applyIntentChanges);
       $("addStageBtn").addEventListener("click", addStage);
       $("applyStageBtn").addEventListener("click", applyStageChanges);

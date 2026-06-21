@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from intent_workflow.config import PROJECT_ROOT, load_workflow_config, save_workflow_config, validate_workflow_config
+from intent_workflow.export_png import OUTPUT_PATH, export_workflow_png
 from intent_workflow.graph import build_workflow_graph
 
 
@@ -47,6 +48,13 @@ def update_workflow(request: WorkflowConfigRequest) -> dict[str, Any]:
         return save_workflow_config(request.config)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/workflow/workspace.png")
+def workflow_workspace_png() -> FileResponse:
+    config = load_workflow_config()
+    export_workflow_png(config, OUTPUT_PATH)
+    return FileResponse(OUTPUT_PATH, media_type="image/png", filename="workflow-workspace.png")
 
 
 @app.post("/workflow/validate")

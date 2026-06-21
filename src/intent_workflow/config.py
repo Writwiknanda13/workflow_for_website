@@ -69,9 +69,25 @@ def validate_workflow_config(config: Any) -> None:
                 if not isinstance(fork, dict):
                     raise ValueError(f"Fork '{intent_id}.{stage_id}.{fork_id}' must be an object.")
                 next_stage = fork.get("next")
-                if next_stage != "finalize" and next_stage not in stages:
+                if next_stage == "finalize":
+                    pass  # always valid
+                elif isinstance(next_stage, str) and ":" in next_stage:
+                    ref_intent_id, ref_stage_id = next_stage.split(":", 1)
+                    if ref_intent_id not in intents:
+                        raise ValueError(
+                            f"Fork '{intent_id}.{stage_id}.{fork_id}' cross-intent target"
+                            f" '{ref_intent_id}' is not a defined intent."
+                        )
+                    ref_stages = intents[ref_intent_id].get("stages", {})
+                    if ref_stage_id not in ref_stages:
+                        raise ValueError(
+                            f"Fork '{intent_id}.{stage_id}.{fork_id}' cross-intent target"
+                            f" '{ref_intent_id}:{ref_stage_id}' is not a stage in that intent."
+                        )
+                elif next_stage not in stages:
                     raise ValueError(
-                        f"Fork '{intent_id}.{stage_id}.{fork_id}' must route to an existing stage or finalize."
+                        f"Fork '{intent_id}.{stage_id}.{fork_id}' must route to an existing stage,"
+                        f" finalize, or a cross-intent reference (intent_id:stage_id)."
                     )
                 if not fork.get("default") and not isinstance(fork.get("when_any"), list):
                     raise ValueError(

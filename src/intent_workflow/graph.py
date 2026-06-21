@@ -105,8 +105,18 @@ def build_workflow_graph(config_path: str | None = None):
         stage = intent_config["stages"][state["current_stage"]]
         user_input = state.get("user_input", "").lower()
 
+        def resolve_next(next_val: str) -> tuple[str, str]:
+            """Return (intent_id, stage_id) for any next value."""
+            if next_val != "finalize" and ":" in next_val:
+                ref_intent, ref_stage = next_val.split(":", 1)
+                return ref_intent, ref_stage
+            return state["intent"], next_val
+
         def route_with_fork(fork_name: str, fork: dict[str, Any]) -> WorkflowState:
+            next_intent, next_stage = resolve_next(fork["next"])
             history = [*state.get("history", []), {"fork": fork_name, "next": fork["next"]}]
+            if next_intent != state["intent"]:
+                history.append({"intent_switch": f"{state['intent']} → {next_intent}"})
             action_results = state.get("action_results", [])
             if fork_action := fork.get("action"):
                 action_results = [
@@ -124,7 +134,8 @@ def build_workflow_graph(config_path: str | None = None):
 
             return {
                 **state,
-                "current_stage": fork["next"],
+                "intent": next_intent,
+                "current_stage": next_stage,
                 "history": history,
                 "action_results": action_results,
             }
